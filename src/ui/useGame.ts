@@ -27,8 +27,14 @@ export interface GameApi {
   select(slot: Slot): void
   /** Dokunulan hücreye göre önizleme konumunu ayarlar. */
   aimAtCell(row: number, col: number): void
-  /** Önizlemeyi doğrudan sol üst köşe ile taşır (klavye). */
-  aimAt(origin: Origin): void
+  /** Önizlemeyi doğrudan sol üst köşe ile taşır (klavye, sürükleme); null önizlemeyi kaldırır. */
+  aimAt(origin: Origin | null): void
+  /** Sürükleme başladı: parçayı seçer (aç/kapa değil). */
+  beginDrag(slot: Slot): void
+  /** Sürüklenen parçayı bırakılan yere yerleştirmeyi dener; başarılıysa true. */
+  dropAt(slot: Slot, origin: Origin): boolean
+  /** Sürükleme iptal: seçimi ve önizlemeyi kaldırır. */
+  cancelDrag(): void
   /** Önizlemedeki yerleşimi uygular; geçersizse reddeder. */
   confirm(): void
   /** Hücreye göre önizleyip hemen yerleştirir (fare tıklaması). */
@@ -93,7 +99,24 @@ export function useGame(): GameApi {
       if (origin) setAim(origin)
     },
     aimAt(origin) {
-      if (selected !== null) setAim(origin)
+      setAim(origin)
+    },
+    beginDrag(slot) {
+      if (game.gameOver || !game.tray[slot]) return
+      setSelected(slot)
+      setAim(null)
+    },
+    dropAt(slot, origin) {
+      const p = previewMove(game, slot, origin)
+      if (!p?.ok || !p.next) return false
+      setGame(p.next)
+      setSelected(null)
+      setAim(null)
+      return true
+    },
+    cancelDrag() {
+      setSelected(null)
+      setAim(null)
     },
     confirm() {
       apply(preview)

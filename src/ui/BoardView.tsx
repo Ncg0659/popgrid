@@ -1,13 +1,17 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
+import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 import { getShape } from '../engine'
 import { BOARD_SIZE, CELL_COUNT, type GameState, type Slot } from '../engine/types'
 import type { Origin, Preview } from './placement'
 
 interface Props {
+  /** Izgara öğesi; sürükleme ölçüleri de buradan okunur. */
+  gridRef: RefObject<HTMLDivElement | null>
   game: GameState
   selected: Slot | null
   preview: Preview | null
   rejectCount: number
+  /** Tepsiden sürükleme sürüyor. */
+  dragging: boolean
   onAimCell(row: number, col: number): void
   onAim(origin: Origin): void
   onPlaceCell(row: number, col: number): void
@@ -22,9 +26,9 @@ const INDICES = Array.from({ length: CELL_COUNT }, (_, i) => i)
  * Fare: üzerinde gezinince önizleme, tıklayınca yerleştirme.
  * Dokunma: ilk dokunuş önizler, önizlemenin üstüne ikinci dokunuş yerleştirir.
  * Klavye: oklar önizlemeyi taşır, Enter/Boşluk yerleştirir, Esc vazgeçer.
+ * Ana mobil oynanış tepsiden sürükle-bırak'tır (useDrag); buradaki dokunma yöntemi alternatif olarak kalır.
  */
-export function BoardView({ game, selected, preview, rejectCount, onAimCell, onAim, onPlaceCell, onConfirm, onCancel }: Props) {
-  const gridRef = useRef<HTMLDivElement>(null)
+export function BoardView({ gridRef, game, selected, preview, rejectCount, dragging, onAimCell, onAim, onPlaceCell, onConfirm, onCancel }: Props) {
   const pointerType = useRef<string>('mouse')
 
   const cellAt = (e: PointerEvent): [number, number] | null => {
@@ -98,6 +102,7 @@ export function BoardView({ game, selected, preview, rejectCount, onAimCell, onA
         aria-label={`Oyun tahtası, ${filledCount} dolu hücre. ${selected === null ? 'Önce bir parça seç.' : 'Oklarla konum seç, Enter ile yerleştir.'}`}
         tabIndex={0}
         data-aiming={selected !== null || undefined}
+        data-dragging={dragging || undefined}
         onPointerDown={(e) => {
           // Dokunmada tarayıcının sonradan gönderdiği uyumluluk "mousedown"unu engeller;
           // aksi hâlde açılan pencerenin odağı çalınır ve çift dokunma yakınlaştırması tetiklenebilir.
