@@ -89,8 +89,8 @@ button {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   grid-template-areas:
-    'best logo restart'
-    'score score score';
+    'sound logo restart'
+    'best score .';
   align-items: center;
   row-gap: 2px;
 }
@@ -129,6 +129,32 @@ button {
 .best {
   grid-area: best;
   justify-self: start;
+  align-self: center;
+}
+
+.sound {
+  grid-area: sound;
+  justify-self: start;
+  width: 44px;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sound svg path {
+  fill: var(--ink);
+}
+
+.sound svg .wave {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.sound[aria-pressed='false'] {
+  background: var(--dimple);
+  box-shadow: 0 3px 0 var(--lilac);
 }
 
 .best svg {
@@ -181,9 +207,14 @@ button {
   text-align: center;
 }
 
-.score {
+.score-wrap {
   grid-area: score;
   justify-self: center;
+  position: relative;
+}
+
+.score {
+  display: block;
   font-size: clamp(36px, 11vw, 54px);
   font-weight: 800;
   line-height: 1;
@@ -198,6 +229,7 @@ button {
 
 /* ---------- Tahta ---------- */
 .board-frame {
+  position: relative;
   width: var(--board);
   height: var(--board);
   padding: var(--pad);
@@ -312,6 +344,161 @@ button {
   0%, 100% { translate: 0; }
   25% { translate: calc(var(--u) * -0.12) 0; }
   75% { translate: calc(var(--u) * 0.12) 0; }
+}
+
+/* ---------- Efektler (Aşama 4) ----------
+ * Yalnızca transform ve opacity canlandırılır (telefonda akıcı). Hepsi dokunmayı engellemez. */
+
+/* Yerleştirme: kısa, yumuşak zıplama */
+.fx-place {
+  animation: place-bounce 240ms cubic-bezier(0.3, 1.5, 0.55, 1);
+}
+
+@keyframes place-bounce {
+  0% { transform: scale(0.72); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Temizleme: bloklar şişip parlayarak patlar */
+.fx-grid {
+  --u: var(--cell);
+  position: absolute;
+  inset: var(--pad);
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  gap: var(--gap);
+  pointer-events: none;
+}
+
+.fx-pop {
+  opacity: 1;
+  /* Ayrı katmanda canlandırılır: tarayıcı her karede yeniden boyamaz. */
+  will-change: transform, opacity;
+  animation: block-pop 300ms ease-in both;
+}
+
+/* Patlarken bloğun üstünde beyaz parlama (yalnızca opaklık canlanır) */
+.fx-pop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fff;
+  opacity: 0;
+  animation: pop-flash 300ms ease-out both;
+  animation-delay: inherit;
+}
+
+@keyframes block-pop {
+  0% { transform: scale(1); opacity: 1; }
+  35% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.15) rotate(12deg); opacity: 0; }
+}
+
+@keyframes pop-flash {
+  0% { opacity: 0; }
+  35% { opacity: 0.45; }
+  100% { opacity: 0; }
+}
+
+/* Parçacık katmanı */
+.fx-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* Çoklu temizleme / kombo kutlaması: tahtanın üst kısmında, kısa sürer. */
+.cheer {
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  text-align: center;
+  will-change: transform, opacity;
+  animation: cheer 950ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.cheer-title {
+  font-size: calc(var(--board) * 0.12);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--c2);
+  text-shadow:
+    0 3px 0 #fff, 0 -3px 0 #fff, 3px 0 0 #fff, -3px 0 0 #fff,
+    3px 3px 0 #fff, -3px 3px 0 #fff, 3px -3px 0 #fff, -3px -3px 0 #fff,
+    0 7px 0 var(--lilac);
+}
+
+.cheer[data-big] .cheer-title {
+  color: var(--c5);
+  font-size: calc(var(--board) * 0.14);
+}
+
+.cheer-combo {
+  margin-top: 4px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: calc(var(--board) * 0.055);
+  font-weight: 800;
+  box-shadow: 0 3px 0 var(--lilac);
+}
+
+@keyframes cheer {
+  0% { opacity: 0; transform: translate(-50%, 12px) scale(0.6); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  30% { transform: translate(-50%, 0) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, -4px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -14px) scale(0.96); }
+}
+
+/* Skor: temizlemede hafif zıplama ve kazanılan puanın yukarı süzülmesi */
+.fx-bump {
+  animation: score-bump 260ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes score-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+
+.gain {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 6px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c6);
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 2px 0 #fff, 0 -2px 0 #fff, 2px 0 0 #fff, -2px 0 0 #fff;
+  animation: gain-float 800ms ease-out both;
+}
+
+@keyframes gain-float {
+  0% { opacity: 0; transform: translateY(8px); }
+  20% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-18px); }
+}
+
+@keyframes fade-out {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ---------- Parça tepsisi ---------- */
@@ -491,5 +678,15 @@ button {
 
   .slot[data-selected] {
     transform: none;
+  }
+
+  /* Hareket yok: kutlama ve kazanılan puan yerinde görünüp yalnızca solar. */
+  .cheer {
+    animation: fade-out 1100ms linear both !important;
+    transform: translate(-50%, 0);
+  }
+
+  .gain {
+    animation: fade-out 900ms linear both !important;
   }
 }

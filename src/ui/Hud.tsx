@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Effect } from '../fx/effects'
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
@@ -6,11 +7,14 @@ interface Props {
   score: number
   best: number
   canRestartFreely: boolean
+  effect: Effect | null
+  soundOn: boolean
+  onToggleSound(): void
   onRestart(): void
 }
 
-/** Logo, rekor, yeniden başlat ve büyük skor. */
-export function Hud({ score, best, canRestartFreely, onRestart }: Props) {
+/** Ses, logo, yeniden başlat; altında rekor ve büyük skor. */
+export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSound, onRestart }: Props) {
   const base = import.meta.env.BASE_URL
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<number | undefined>(undefined)
@@ -29,14 +33,28 @@ export function Hud({ score, best, canRestartFreely, onRestart }: Props) {
     timer.current = window.setTimeout(() => setConfirming(false), 3000)
   }
 
+  // Temizleme olan hamlede skor hafifçe zıplar ve kazanılan puan yukarı süzülür.
+  const celebrate = effect && effect.cleared.length > 0 ? effect : null
+
   return (
     <header className="hud">
-      <div className="pill best" aria-label={`Rekor ${fmt(best)}`}>
+      <button
+        type="button"
+        className="pill sound"
+        aria-pressed={soundOn}
+        aria-label={soundOn ? 'Ses açık' : 'Ses kapalı'}
+        title={soundOn ? 'Sesi kapat' : 'Sesi aç'}
+        onClick={onToggleSound}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.8 10H4.8z" />
+          <path d="M4 9h4l5-4v14l-5-4H4z" />
+          {soundOn ? (
+            <path className="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" />
+          ) : (
+            <path className="wave" d="M16.5 9.5l5 5M21.5 9.5l-5 5" />
+          )}
         </svg>
-        <span>{fmt(best)}</span>
-      </div>
+      </button>
       <h1 className="logo">
         <img
           src={`${base}logo-360.webp`}
@@ -65,9 +83,27 @@ export function Hud({ score, best, canRestartFreely, onRestart }: Props) {
           </span>
         )}
       </div>
-      <output className="score" aria-label={`Skor ${fmt(score)}`} aria-live="polite">
-        {fmt(score)}
-      </output>
+      <div className="pill best" aria-label={`Rekor ${fmt(best)}`}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.8 10H4.8z" />
+        </svg>
+        <span>{fmt(best)}</span>
+      </div>
+      <div className="score-wrap">
+        <output
+          key={celebrate ? `s-${celebrate.id}` : 'score'}
+          className={celebrate ? 'score fx-bump' : 'score'}
+          aria-label={`Skor ${fmt(score)}`}
+          aria-live="polite"
+        >
+          {fmt(score)}
+        </output>
+        {celebrate && (
+          <span key={`g-${celebrate.id}`} className="gain" aria-hidden="true">
+            +{fmt(celebrate.gained)}
+          </span>
+        )}
+      </div>
     </header>
   )
 }

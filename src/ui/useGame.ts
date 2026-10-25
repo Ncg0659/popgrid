@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getShape, newGame } from '../engine'
 import type { GameState, Slot } from '../engine/types'
+import { describeEffect, type Effect } from '../fx/effects'
 import { loadBest, saveBest } from '../storage/records'
 import { originFor, previewMove, type Origin, type Preview } from './placement'
 
@@ -24,6 +25,8 @@ export interface GameApi {
   readonly preview: Preview | null
   /** Geçersiz denemede artar; arayüz sallanma geri bildirimi için kullanır. */
   readonly rejectCount: number
+  /** Son başarılı hamlenin efekt tanımı (animasyon, parçacık, ses); yeni oyunda null. */
+  readonly effect: Effect | null
   select(slot: Slot): void
   /** Dokunulan hücreye göre önizleme konumunu ayarlar. */
   aimAtCell(row: number, col: number): void
@@ -50,6 +53,8 @@ export function useGame(): GameApi {
   const [selected, setSelected] = useState<Slot | null>(null)
   const [aim, setAim] = useState<Origin | null>(null)
   const [rejectCount, setRejectCount] = useState(0)
+  const [effect, setEffect] = useState<Effect | null>(null)
+  const effectId = useRef(0)
 
   const preview = useMemo(
     () => (selected !== null && aim ? previewMove(game, selected, aim) : null),
@@ -63,15 +68,26 @@ export function useGame(): GameApi {
     }
   }, [game.score, best])
 
-  const apply = useCallback((p: Preview | null) => {
-    if (p?.ok && p.next) {
+  /** Geçerli önizlemeyi uygular ve efekt tanımını üretir. Motorun sonucu aynen kullanılır. */
+  const commit = useCallback(
+    (p: Preview | null): boolean => {
+      if (!p?.ok || !p.next) return false
+      effectId.current += 1
+      setEffect(describeEffect(effectId.current, game.board, p.events))
       setGame(p.next)
       setSelected(null)
       setAim(null)
-    } else {
-      setRejectCount((n) => n + 1)
-    }
-  }, [])
+      return true
+    },
+    [game],
+  )
+
+  const apply = useCallback(
+    (p: Preview | null) => {
+      if (!commit(p)) setRejectCount((n) => n + 1)
+    },
+    [commit],
+  )
 
   const originForCell = useCallback(
     (row: number, col: number): Origin | null => {
@@ -89,6 +105,7 @@ export function useGame(): GameApi {
     selected,
     preview,
     rejectCount,
+    effect,
     select(slot) {
       if (game.gameOver || !game.tray[slot]) return
       setSelected((current) => (current === slot ? null : slot))
@@ -107,12 +124,7 @@ export function useGame(): GameApi {
       setAim(null)
     },
     dropAt(slot, origin) {
-      const p = previewMove(game, slot, origin)
-      if (!p?.ok || !p.next) return false
-      setGame(p.next)
-      setSelected(null)
-      setAim(null)
-      return true
+      return commit(previewMove(game, slot, origin))
     },
     cancelDrag() {
       setSelected(null)
@@ -132,6 +144,7 @@ export function useGame(): GameApi {
     },
     restart() {
       setGame(newGame(freshSeed()))
+      setEffect(null)
       setBestAtStart(best)
       setSelected(null)
       setAim(null)

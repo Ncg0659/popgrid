@@ -1,5 +1,7 @@
 import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 import { getShape } from '../engine'
+import { BoardFx } from '../fx/BoardFx'
+import type { Effect } from '../fx/effects'
 import { BOARD_SIZE, CELL_COUNT, type GameState, type Slot } from '../engine/types'
 import type { Origin, Preview } from './placement'
 
@@ -12,6 +14,9 @@ interface Props {
   rejectCount: number
   /** Tepsiden sürükleme sürüyor. */
   dragging: boolean
+  /** Son hamlenin efektleri (yerleştirme zıplaması, patlama, kutlama). */
+  effect: Effect | null
+  reducedMotion: boolean
   onAimCell(row: number, col: number): void
   onAim(origin: Origin): void
   onPlaceCell(row: number, col: number): void
@@ -28,7 +33,7 @@ const INDICES = Array.from({ length: CELL_COUNT }, (_, i) => i)
  * Klavye: oklar önizlemeyi taşır, Enter/Boşluk yerleştirir, Esc vazgeçer.
  * Ana mobil oynanış tepsiden sürükle-bırak'tır (useDrag); buradaki dokunma yöntemi alternatif olarak kalır.
  */
-export function BoardView({ gridRef, game, selected, preview, rejectCount, dragging, onAimCell, onAim, onPlaceCell, onConfirm, onCancel }: Props) {
+export function BoardView({ gridRef, game, selected, preview, rejectCount, dragging, effect, reducedMotion, onAimCell, onAim, onPlaceCell, onConfirm, onCancel }: Props) {
   const pointerType = useRef<string>('mouse')
 
   const cellAt = (e: PointerEvent): [number, number] | null => {
@@ -92,6 +97,7 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
   const ghost = new Set(preview?.cells ?? [])
   const ghostColor = selected !== null ? game.tray[selected]?.color : undefined
   const filledCount = game.board.filter((c) => c !== 0).length
+  const justPlaced = new Set(effect?.placed ?? [])
 
   return (
     <div className="board-frame">
@@ -119,7 +125,14 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
           const clearing = preview?.ok && preview.clearing.has(i)
           return (
             <div key={i} className="cell" data-clearing={clearing || undefined}>
-              {color !== 0 && <span className="blk" data-c={color} />}
+              {color !== 0 && (
+                <span
+                  // Yeni yerleşen bloğun anahtarı her hamlede değişir; zıplama animasyonu yeniden başlar.
+                  key={justPlaced.has(i) ? `placed-${effect?.id}` : 'block'}
+                  className={justPlaced.has(i) ? 'blk fx-place' : 'blk'}
+                  data-c={color}
+                />
+              )}
               {isGhost && (
                 <span
                   key={preview?.ok ? 'ok' : `bad-${rejectCount}`}
@@ -132,6 +145,7 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
           )
         })}
       </div>
+      <BoardFx effect={effect} reducedMotion={reducedMotion} />
     </div>
   )
 }

@@ -1,4 +1,7 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { isSoundEnabled, playClear, playPlace, setSoundEnabled, unlockAudio } from './audio/sound'
+import { FxCanvas } from './fx/FxCanvas'
+import { useReducedMotion } from './fx/useReducedMotion'
 import { useDrag } from './input/useDrag'
 import { BoardView } from './ui/BoardView'
 import { GameOver } from './ui/GameOver'
@@ -11,7 +14,23 @@ export default function App() {
   const g = useGame()
   const lastPointer = useRef<string>('touch')
   const boardRef = useRef<HTMLDivElement>(null)
-  const { game, selected, preview } = g
+  const { game, selected, preview, effect } = g
+  const reducedMotion = useReducedMotion()
+  const [soundOn, setSoundOn] = useState(isSoundEnabled)
+
+  // Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi.
+  useEffect(() => {
+    if (!effect) return
+    if (effect.lines > 0) playClear(effect.lines, effect.combo)
+    else playPlace()
+  }, [effect])
+
+  const toggleSound = () => {
+    const next = !soundOn
+    setSoundEnabled(next)
+    setSoundOn(next)
+    if (next) playPlace()
+  }
 
   const { drag, floatRef, handlers } = useDrag({
     tray: game.tray,
@@ -31,8 +50,26 @@ export default function App() {
   else if (preview?.ok) hint = lastPointer.current === 'mouse' ? 'Tıkla ve yerleştir.' : 'Yerleştirmek için parçaya tekrar dokun.'
 
   return (
-    <main className="game" data-dragging={drag ? '' : undefined} onPointerDownCapture={(e) => (lastPointer.current = e.pointerType)}>
-      <Hud score={game.score} best={g.best} canRestartFreely={game.gameOver || game.moveCount === 0} onRestart={g.restart} />
+    <main
+      className="game"
+      data-dragging={drag ? '' : undefined}
+      onPointerDownCapture={(e) => {
+        lastPointer.current = e.pointerType
+        unlockAudio()
+      }}
+      // iOS Safari sesi dokunmanın bitişinde (touchend) açar; ikisinde de denenir.
+      onPointerUpCapture={unlockAudio}
+      onKeyDownCapture={unlockAudio}
+    >
+      <Hud
+        score={game.score}
+        best={g.best}
+        canRestartFreely={game.gameOver || game.moveCount === 0}
+        effect={effect}
+        soundOn={soundOn}
+        onToggleSound={toggleSound}
+        onRestart={g.restart}
+      />
       <BoardView
         gridRef={boardRef}
         game={game}
@@ -40,6 +77,8 @@ export default function App() {
         preview={preview}
         rejectCount={g.rejectCount}
         dragging={drag !== null}
+        effect={effect}
+        reducedMotion={reducedMotion}
         onAimCell={g.aimAtCell}
         onAim={g.aimAt}
         onPlaceCell={g.placeAtCell}
@@ -58,6 +97,7 @@ export default function App() {
       <p className="hint" aria-live="polite">
         {hint}
       </p>
+      <FxCanvas effect={effect} boardRef={boardRef} reducedMotion={reducedMotion} />
       {drag && (
         <div ref={floatRef} className="drag-float" aria-hidden="true">
           <PieceView piece={drag.piece} />

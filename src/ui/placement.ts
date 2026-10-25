@@ -3,7 +3,7 @@
  * Saf fonksiyonlar: tarayıcı gerektirmez, Node testleriyle denenir.
  */
 import { getShape, play } from '../engine'
-import { BOARD_SIZE, type GameState, type Shape, type Slot } from '../engine/types'
+import { BOARD_SIZE, type GameEvent, type GameState, type Shape, type Slot } from '../engine/types'
 
 export interface Origin {
   readonly row: number
@@ -46,6 +46,8 @@ export interface Preview {
   readonly clearing: ReadonlySet<number>
   /** Yerleşim sonrası durum (yalnızca ok ise). */
   readonly next: GameState | null
+  /** Motorun bu hamle için verdiği olaylar (efektler için; yalnızca ok ise dolu). */
+  readonly events: readonly GameEvent[]
 }
 
 /** Hamleyi motorda "deneyerek" önizler. Motor saf olduğu için mevcut durum değişmez. */
@@ -55,8 +57,8 @@ export function previewMove(state: GameState, slot: Slot, origin: Origin): Previ
   const shape = getShape(piece.shapeId)
   const cells = shape.cells.map(([r, c]) => (origin.row + r) * BOARD_SIZE + origin.col + c)
   const result = play(state, { slot, row: origin.row, col: origin.col })
-  if (!result.ok) return { origin, cells, ok: false, clearing: new Set(), next: null }
+  if (!result.ok) return { origin, cells, ok: false, clearing: new Set(), next: null, events: [] }
   const clearing = new Set<number>()
   for (const e of result.events) if (e.type === 'cleared') for (const i of e.cells) clearing.add(i)
-  return { origin, cells, ok: true, clearing, next: result.state }
+  return { origin, cells, ok: true, clearing, next: result.state, events: result.events }
 }
