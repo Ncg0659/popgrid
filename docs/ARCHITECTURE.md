@@ -48,7 +48,14 @@
   `grantJokers` envantere ekleme için saf yardımcıdır. Mağaza/yıldız yok.
 - **Rekor:** Klasik eski anahtarı (`popgrid:v1:best`) kullanır; Eğlence ayrı (`popgrid:v1:best:eglence`).
 - Simülasyon: `npm run sim:jokers` → `docs/sim-jokers.md`.
-- Aşama 6.2 (arayüz) test gereksinimleri: `docs/asama-6.2-test-gereksinimleri.md`.
+- Aşama 6.2 (arayüz) test gereksinimleri ve durumu: `docs/asama-6.2-test-gereksinimleri.md`.
+
+## Joker arayüzü (Aşama 6.2)
+- `src/ui/jokerUi.ts` (saf): hangi joker düğmesi ne zaman açık; sıkışınca yalnızca kurtuluşa katkı verebilecekler (`usefulWhenStuck`).
+- `src/ui/useGame.ts`: mod, iki rekor, `arm/disarm`, `refresh`, `hammerCell`, `rotateSlot`, `giveUp`. Joker eylemleri her zaman en son durumu okur (`gameRef`), Yenile'de 450 ms çift dokunma koruması vardır.
+- `JokerBar` (tepsinin altında, Eğlence'de ipucu satırının yerinde), `ModeSheet` ("Yeni oyun" ve oyun sonundan), `StuckNotice` (üst bölümün üstünde; tahtayı, tepsiyi ve çubuğu kapatmaz).
+- Depolama: `popgrid:v1:mode` (son mod), `popgrid:v1:inventory` (kalıcı envanter, şimdilik 0; yalnızca `jokerUsed.source === 'inventory'` olayıyla düşer).
+- Klasik ekran değişmedi: Eğlence'ye özgü CSS `.game[data-mode='eglence']` altındadır.
 
 ## Gelecek: Günlük yarışma modu (not)
 Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi gerekir. Bu yüzden:

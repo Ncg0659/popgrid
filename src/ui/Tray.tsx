@@ -22,11 +22,28 @@ interface Props {
   slotHandlers(slot: Slot): SlotHandlers
   /** Klavye ile seçme (Enter/Boşluk). Dokunma ve fare useDrag üzerinden gelir. */
   onKeyboardSelect(slot: Slot): void
+  /** Eğlence Modu: Döndür seçili; dokunulan parça döner. */
+  rotateMode?: boolean
+  /** Döndür'ün uygulanabileceği yuvalar. */
+  rotatable?: readonly Slot[]
+  /** Ücretsiz dönüşü olan (ödenmiş) yuvalar. */
+  rotatePaid?: readonly boolean[]
 }
 
 const SLOTS: readonly Slot[] = [0, 1, 2]
 
-export function Tray({ tray, board, selected, dragging, disabled, slotHandlers, onKeyboardSelect }: Props) {
+export function Tray({
+  tray,
+  board,
+  selected,
+  dragging,
+  disabled,
+  slotHandlers,
+  onKeyboardSelect,
+  rotateMode = false,
+  rotatable = [],
+  rotatePaid = [false, false, false],
+}: Props) {
   return (
     <div className="tray" role="group" aria-label="Parçalar">
       {SLOTS.map((slot) => {
@@ -34,6 +51,11 @@ export function Tray({ tray, board, selected, dragging, disabled, slotHandlers, 
         if (!piece) return <div key={slot} className="slot slot-empty" aria-hidden="true" />
         const fits = canPlaceAnywhere(board, getShape(piece.shapeId))
         const isSelected = selected === slot && dragging === null
+        const canRotate = rotatable.includes(slot)
+        const free = !!rotatePaid[slot]
+        const blocks = getShape(piece.shapeId).cells.length
+        let label = `Parça ${slot + 1}, ${blocks} blok${fits ? '' : ', hiçbir yere sığmıyor'}`
+        if (rotateMode) label += canRotate ? (free ? ', döndürmek için seç (ücretsiz)' : ', döndürmek için seç') : ', döndürülemez'
         return (
           <button
             key={slot}
@@ -41,9 +63,11 @@ export function Tray({ tray, board, selected, dragging, disabled, slotHandlers, 
             className="slot"
             data-selected={isSelected || undefined}
             data-dragging={dragging === slot || undefined}
-            data-stuck={!fits || undefined}
+            data-stuck={(!fits && !rotateMode) || undefined}
+            data-rotatable={(rotateMode && canRotate) || undefined}
+            data-norotate={(rotateMode && !canRotate) || undefined}
             aria-pressed={isSelected}
-            aria-label={`Parça ${slot + 1}, ${getShape(piece.shapeId).cells.length} blok${fits ? '' : ', hiçbir yere sığmıyor'}`}
+            aria-label={label}
             disabled={disabled}
             {...slotHandlers(slot)}
             onClick={(e) => {
@@ -52,6 +76,11 @@ export function Tray({ tray, board, selected, dragging, disabled, slotHandlers, 
             }}
           >
             <PieceView piece={piece} />
+            {free && (
+              <span className="free-rot" aria-hidden="true" title="Ücretsiz dönüş">
+                ↻
+              </span>
+            )}
           </button>
         )
       })}

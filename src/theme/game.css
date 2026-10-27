@@ -1276,3 +1276,491 @@ button {
   color: var(--ink);
   font-weight: 800;
 }
+
+/* =====================================================================
+ * Aşama 6.2 — Eğlence Modu ve jokerler.
+ * Klasik Mod'un görünümü değişmez: bu bölümdeki kurallar yalnızca Eğlence'ye özgü öğelere
+ * (data-mode="eglence", joker çubuğu, mod penceresi, sıkıştın kartı) uygulanır.
+ * ===================================================================== */
+
+/* Ekranda görünmez, ekran okuyucuda okunur. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hud-zone {
+  position: relative;
+  width: var(--board);
+}
+
+/* Eğlence: joker çubuğu (52px) ipucu satırının (~21px) yerini alır. Tahta yalnızca ekran yüksekliği
+ * yetmediğinde ve yalnızca bu fark kadar küçülür (268px → 299px ayrılır); genişliğe göre ölçülen
+ * ekranlarda (375px ve üstü telefonlar) tahta Klasik ile aynı boyuttadır. */
+.game[data-mode='eglence'] {
+  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 299px)));
+  --pad: calc(var(--board) * 0.032);
+  --gap: calc(var(--board) * 0.009);
+  --frame: calc(var(--board) * 0.02);
+  --cell: calc((var(--board) - 2 * var(--frame) - 2 * var(--pad) - 7 * var(--gap)) / 8);
+  --slot-w: calc((var(--board) - 2 * 10px) / 3);
+  --ut: min(calc(var(--cell) * 0.5), calc((var(--slot-w) - 14px) / 5));
+}
+
+/* ---------- Joker çubuğu ---------- */
+.joker-bar {
+  /* Düğme içi düzen çubuğun kendi genişliğine göre seçilir (aşağıdaki @container kuralları). */
+  container: jokers / inline-size;
+  width: var(--board);
+  height: 52px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.joker-bar[data-armed] {
+  grid-template-columns: 1fr;
+}
+
+.joker-btn {
+  position: relative;
+  height: 52px;
+  min-width: 0;
+  /* Simge her düğmede aynı yerde; ad kalan alanın ortasında. Üç düğme eşit genişlikte. */
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  justify-items: center;
+  column-gap: 8px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--sticker);
+  box-shadow: 0 4px 0 var(--lilac), 0 8px 14px rgba(90, 60, 170, 0.14);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.joker-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--lilac);
+}
+
+.joker-btn:disabled {
+  cursor: default;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 0 var(--dimple);
+  color: var(--ink-soft);
+}
+
+.joker-btn:disabled .jk-chip {
+  filter: grayscale(0.85);
+  opacity: 0.55;
+}
+
+.jk-name {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+/* Orta genişlik (375–390 px telefonlar): biraz daha küçük yazı ve simge, adlar sığar. */
+@container jokers (max-width: 379px) {
+  .joker-btn {
+    grid-template-columns: 32px 1fr;
+    column-gap: 7px;
+    font-size: 14px;
+  }
+
+  .joker-btn .jk-chip {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Dar çubuk: üç düğmede birden yalnızca simge + hak rozeti (dokunma alanı aynı kalır). */
+@container jokers (max-width: 339px) {
+  .joker-armed {
+    gap: 8px;
+    padding-left: 7px;
+  }
+
+  .joker-msg {
+    font-size: 14px;
+    line-height: 1.12;
+  }
+
+  .joker-cancel {
+    padding: 0 11px;
+    font-size: 15px;
+  }
+
+  .joker-btn {
+    grid-template-columns: 34px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .joker-btn .jk-chip {
+    width: 34px;
+    height: 34px;
+  }
+
+  .jk-name {
+    display: none;
+  }
+}
+
+/* Renkli, hacimli joker rozeti (blok stiliyle aynı dil: alt gölge, üst ışık). */
+.jk-chip {
+  --k: var(--c4);
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background:
+    radial-gradient(90% 70% at 35% 22%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 60%),
+    var(--k);
+  box-shadow:
+    inset 0 -4px 0 rgba(43, 18, 87, 0.25),
+    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    0 2px 4px rgba(60, 30, 120, 0.25);
+}
+
+.jk-chip[data-kind='cekic'] { --k: var(--c2); }
+.jk-chip[data-kind='yenile'] { --k: var(--c1); }
+.jk-chip[data-kind='dondur'] { --k: var(--c5); }
+
+.jk-icon {
+  width: 24px;
+  height: 24px;
+  margin-top: -2px;
+  fill: #fff;
+  filter: drop-shadow(0 1.5px 0 rgba(43, 18, 87, 0.3));
+}
+
+.jk-icon .jk-stroke {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+}
+
+.jk-icon .jk-shine {
+  fill: rgba(43, 18, 87, 0.14);
+}
+
+.jk-icon .jk-shade {
+  fill: rgba(43, 18, 87, 0.18);
+}
+
+/* Kalan hak rozeti: rengin köşesinde, her zaman okunur. */
+.jk-count {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.jk-count[data-zero] {
+  background: var(--dimple);
+  color: var(--ink-soft);
+}
+
+/* Hedef seçimi: çubuk aynı yükseklikte yönerge + Vazgeç satırına dönüşür. */
+.joker-armed {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 0 9px;
+  border-radius: 18px;
+  background: var(--sticker);
+  box-shadow: 0 4px 0 var(--lilac), 0 8px 14px rgba(90, 60, 170, 0.14);
+}
+
+.joker-bar[data-armed='cekic'] .joker-armed {
+  box-shadow: 0 0 0 3px var(--c2), 0 4px 0 3px color-mix(in oklab, var(--c2) 55%, var(--lilac));
+}
+
+.joker-bar[data-armed='dondur'] .joker-armed {
+  box-shadow: 0 0 0 3px var(--c5), 0 4px 0 3px color-mix(in oklab, var(--c5) 55%, var(--lilac));
+}
+
+/* Hak rozeti çipin sağ üst köşesinden taşar; yönerge yazısına binmesin. */
+.joker-armed .jk-chip {
+  margin-right: 6px;
+}
+
+.joker-msg {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.joker-cancel {
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+/* Çekiç: kırılabilir bloklar belirginleşir, boş hücreler geri çekilir. */
+.board[data-hammer] {
+  cursor: crosshair;
+}
+
+.board[data-hammer] .cell > .blk:not(.ghost) {
+  outline: calc(var(--u) * 0.09) dashed rgba(255, 255, 255, 0.95);
+  outline-offset: calc(var(--u) * -0.14);
+}
+
+.board[data-hammer] .cell[data-empty] {
+  opacity: 0.55;
+}
+
+.board[data-hammer] .cell[data-target] > .blk {
+  outline: calc(var(--u) * 0.1) solid var(--ink);
+  outline-offset: calc(var(--u) * -0.1);
+  filter: brightness(1.1);
+}
+
+.board[data-hammer] .cell[data-target][data-empty] {
+  opacity: 1;
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.08) var(--ink-soft);
+}
+
+/* Döndür: dönebilen parçalar öne çıkar; dönemeyenler soluk.
+ * (position yalnızca Eğlence'de: Klasik'te çizim sırası ve tahta gölgesi birebir aynı kalsın.) */
+.game[data-mode='eglence'] .slot {
+  position: relative;
+}
+
+.slot[data-rotatable] {
+  background: var(--sticker);
+  box-shadow: 0 0 0 3px var(--c5), 0 5px 0 3px color-mix(in oklab, var(--c5) 50%, var(--lilac));
+}
+
+.slot[data-norotate] .piece {
+  opacity: 0.35;
+  filter: grayscale(0.7);
+}
+
+.free-rot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--c5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ---------- Sıkıştın kartı (üst bölümün üstünde) ---------- */
+.stuck-card {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border: 3px solid var(--c2);
+  border-radius: 22px;
+  background: var(--sticker);
+  box-shadow: 0 5px 0 color-mix(in oklab, var(--c2) 45%, var(--lilac)), 0 12px 24px rgba(90, 60, 170, 0.2);
+}
+
+.stuck-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.stuck-text strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c2);
+}
+
+.stuck-text span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stuck-end {
+  flex: none;
+}
+
+/* ---------- Eğlence rekoru ---------- */
+.best[data-mode='eglence'] svg {
+  fill: var(--c5);
+  stroke: #6b2fd0;
+}
+
+/* ---------- Mod seçimi ---------- */
+.mode-lead {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.mode-cards {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mode-card {
+  width: 100%;
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--sticker);
+  box-shadow: 0 4px 0 var(--lilac), 0 10px 18px rgba(90, 60, 170, 0.12);
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.mode-card[data-current] {
+  box-shadow: 0 0 0 3px var(--c4), 0 4px 0 3px color-mix(in oklab, var(--c4) 45%, var(--lilac));
+}
+
+.mode-card:active {
+  transform: translateY(2px);
+}
+
+.mode-art {
+  --u: 22px;
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(2, 22px);
+  gap: 4px;
+}
+
+.mode-art .blk {
+  width: 22px;
+  height: 22px;
+}
+
+.mode-art.jokers {
+  grid-template-columns: repeat(2, 26px);
+  gap: 4px;
+}
+
+.mode-art.jokers .jk-chip {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+}
+
+.mode-art.jokers .jk-chip:last-child {
+  grid-column: 1 / span 2;
+  justify-self: center;
+}
+
+.mode-art.jokers .jk-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mode-name {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.mode-desc {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink-soft);
+}
+
+.mode-best {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* Oyun sonu: mod değiştirme bağlantısı */
+.gameover-mode {
+  margin-top: 10px;
+  min-height: 44px;
+}
+
+/* Dar ekran: sıkıştın kartı ve yönerge yazısı küçülür. */
+@media (max-width: 380px) {
+  .stuck-text strong {
+    font-size: 18px;
+  }
+
+  .stuck-text span {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 340px) {
+  .joker-msg {
+    font-size: 14px;
+  }
+}
+
+/* Azaltılmış hareket: basma hissi kaldırılır (işlev aynı). */
+@media (prefers-reduced-motion: reduce) {
+  .joker-btn:active:not(:disabled),
+  .mode-card:active {
+    transform: none;
+  }
+}

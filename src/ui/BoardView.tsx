@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 import { getShape } from '../engine'
 import { BoardFx } from '../fx/BoardFx'
 import type { Effect } from '../fx/effects'
@@ -22,6 +22,10 @@ interface Props {
   onPlaceCell(row: number, col: number): void
   onConfirm(): void
   onCancel(): void
+  /** Eğlence Modu: Çekiç seçili; dokunulan dolu blok kırılır. */
+  hammer?: boolean
+  onHammerCell?(cell: number): void
+  onCancelJoker?(): void
 }
 
 const INDICES = Array.from({ length: CELL_COUNT }, (_, i) => i)
@@ -33,8 +37,30 @@ const INDICES = Array.from({ length: CELL_COUNT }, (_, i) => i)
  * Klavye: oklar önizlemeyi taşır, Enter/Boşluk yerleştirir, Esc vazgeçer.
  * Ana mobil oynanış tepsiden sürükle-bırak'tır (useDrag); buradaki dokunma yöntemi alternatif olarak kalır.
  */
-export function BoardView({ gridRef, game, selected, preview, rejectCount, dragging, effect, reducedMotion, onAimCell, onAim, onPlaceCell, onConfirm, onCancel }: Props) {
+export function BoardView({
+  gridRef,
+  game,
+  selected,
+  preview,
+  rejectCount,
+  dragging,
+  effect,
+  reducedMotion,
+  onAimCell,
+  onAim,
+  onPlaceCell,
+  onConfirm,
+  onCancel,
+  hammer = false,
+  onHammerCell,
+  onCancelJoker,
+}: Props) {
   const pointerType = useRef<string>('mouse')
+  // Çekiç hedefi: fareyle üzerine gelinen ya da klavye imlecinin olduğu hücre.
+  const [target, setTarget] = useState<number | null>(null)
+  useEffect(() => {
+    if (!hammer) setTarget(null)
+  }, [hammer])
 
   const cellAt = (e: PointerEvent): [number, number] | null => {
     const el = gridRef.current
@@ -47,6 +73,12 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
   }
 
   const handlePointerMove = (e: PointerEvent) => {
+    if (hammer) {
+      if (e.pointerType !== 'mouse') return
+      const cell = cellAt(e)
+      setTarget(cell ? cell[0] * BOARD_SIZE + cell[1] : null)
+      return
+    }
     if (e.pointerType !== 'mouse' || selected === null) return
     const cell = cellAt(e)
     if (cell) onAimCell(cell[0], cell[1])
@@ -54,6 +86,11 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
 
   const handlePointerUp = (e: PointerEvent) => {
     pointerType.current = e.pointerType
+    if (hammer) {
+      const cell = cellAt(e)
+      if (cell && !game.gameOver) onHammerCell?.(cell[0] * BOARD_SIZE + cell[1])
+      return
+    }
     if (selected === null || game.gameOver) return
     const cell = cellAt(e)
     if (!cell) return
@@ -67,7 +104,35 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
     else onAimCell(row, col)
   }
 
+  const handleHammerKey = (e: KeyboardEvent) => {
+    const current = target ?? 3 * BOARD_SIZE + 3
+    const r = Math.floor(current / BOARD_SIZE)
+    const c = current % BOARD_SIZE
+    const to = (dr: number, dc: number) => {
+      e.preventDefault()
+      const nr = Math.min(BOARD_SIZE - 1, Math.max(0, r + (target === null ? 0 : dr)))
+      const nc = Math.min(BOARD_SIZE - 1, Math.max(0, c + (target === null ? 0 : dc)))
+      setTarget(nr * BOARD_SIZE + nc)
+    }
+    if (e.key === 'ArrowUp') to(-1, 0)
+    else if (e.key === 'ArrowDown') to(1, 0)
+    else if (e.key === 'ArrowLeft') to(0, -1)
+    else if (e.key === 'ArrowRight') to(0, 1)
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      if (target === null) to(0, 0)
+      else onHammerCell?.(target)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancelJoker?.()
+    }
+  }
+
   const handleKey = (e: KeyboardEvent) => {
+    if (hammer) {
+      handleHammerKey(e)
+      return
+    }
     if (selected === null) return
     const piece = game.tray[selected]
     if (!piece) return
@@ -105,10 +170,15 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
         ref={gridRef}
         className="board"
         role="application"
-        aria-label={`Oyun tahtası, ${filledCount} dolu hücre. ${selected === null ? 'Önce bir parça seç.' : 'Oklarla konum seç, Enter ile yerleştir.'}`}
+        aria-label={
+          hammer
+            ? `Çekiç: kırılacak bloğu seç. ${filledCount} dolu hücre. Oklarla gez, Enter ile kır, Esc ile vazgeç.`
+            : `Oyun tahtası, ${filledCount} dolu hücre. ${selected === null ? 'Önce bir parça seç.' : 'Oklarla konum seç, Enter ile yerleştir.'}`
+        }
         tabIndex={0}
         data-aiming={selected !== null || undefined}
         data-dragging={dragging || undefined}
+        data-hammer={hammer || undefined}
         onPointerDown={(e) => {
           // Dokunmada tarayıcının sonradan gönderdiği uyumluluk "mousedown"unu engeller;
           // aksi hâlde açılan pencerenin odağı çalınır ve çift dokunma yakınlaştırması tetiklenebilir.
@@ -116,7 +186,11 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
         }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={(e) => e.pointerType === 'mouse' && onCancel()}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== 'mouse') return
+          if (hammer) setTarget(null)
+          else onCancel()
+        }}
         onKeyDown={handleKey}
       >
         {INDICES.map((i) => {
@@ -124,7 +198,15 @@ export function BoardView({ gridRef, game, selected, preview, rejectCount, dragg
           const isGhost = ghost.has(i)
           const clearing = preview?.ok && preview.clearing.has(i)
           return (
-            <div key={i} className="cell" data-clearing={clearing || undefined}>
+            <div
+              key={i}
+              className="cell"
+              data-clearing={clearing || undefined}
+              data-target={(hammer && target === i) || undefined}
+              // Çekiç modunda boş hücreler geri çekilir (:has() yerine doğrudan işaret: tahtadaki her
+              // değişiklikte ek stil hesabı yapılmasın).
+              data-empty={(hammer && color === 0) || undefined}
+            >
               {color !== 0 && (
                 <span
                   // Yeni yerleşen bloğun anahtarı her hamlede değişir; zıplama animasyonu yeniden başlar.

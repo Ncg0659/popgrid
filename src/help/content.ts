@@ -48,7 +48,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
         kind: 'list',
         items: [
           'Tahta 8 × 8 karedir.',
-          'Altta her seferinde üç parça gelir. Parçalar döndürülemez.',
+          'Altta her seferinde üç parça gelir. Klasik Mod’da parçalar döndürülemez.',
           'Üç parçayı da yerleştirince yeni üç parça gelir.',
           'Dolu bir satır ya da sütun patlar ve yer açılır.',
           'Hiçbir parça sığmayınca oyun biter.',
@@ -139,7 +139,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
           { q: 'Rekorum nerede saklanıyor?', a: 'Bu cihazda, tarayıcının hafızasında. Başka bir cihazda görünmez; tarayıcı verilerini silersen kaybolur.' },
           { q: 'Sayfayı yenilersem oyunum devam eder mi?', a: 'Hayır. Şimdilik süren oyun kaydedilmiyor; yalnızca rekorun ve ses tercihin saklanır.' },
           { q: 'Ses gelmiyor, neden?', a: 'Hoparlör düğmesinin açık olduğundan emin ol. iPhone sessiz moddaysa oyun sesleri duyulmaz; sesi açmak için sessiz modu kapat.' },
-          { q: 'Parçaları döndürebilir miyim?', a: 'Hayır. Parçalar geldiği yönde yerleştirilir; bu oyunun zorluğunun bir parçası.' },
+          { q: 'Parçaları döndürebilir miyim?', a: 'Klasik Mod’da hayır: parçalar geldiği yönde yerleştirilir; bu oyunun zorluğunun bir parçası. Eğlence Modu’nda Döndür jokeriyle döndürebilirsin.' },
           { q: 'Eğitimi tekrar izleyebilir miyim?', a: 'Evet, aşağıdaki düğmeyle.' },
         ],
       },
@@ -178,7 +178,7 @@ export const TUTORIAL_CARDS: readonly TutorialCard[] = [
   {
     id: 'uclu',
     title: 'Üç parça, sonra yenileri',
-    text: 'Her seferinde üç parça gelir. Üçünü de yerleştirince yenileri gelir. Parçalar döndürülemez.',
+    text: 'Her seferinde üç parça gelir. Üçünü de yerleştirince yenileri gelir. Klasik Mod’da parçalar döndürülemez.',
     scene: 'refill',
   },
   {
