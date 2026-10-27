@@ -11,10 +11,12 @@ interface Props {
   soundOn: boolean
   onToggleSound(): void
   onRestart(): void
+  /** "Nasıl Oynanır?" ekranını açar. */
+  onHelp(): void
 }
 
 /** Ses, logo, yeniden başlat; altında rekor ve büyük skor. */
-export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSound, onRestart }: Props) {
+export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSound, onRestart, onHelp }: Props) {
   const base = import.meta.env.BASE_URL
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<number | undefined>(undefined)
@@ -104,6 +106,9 @@ export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSo
           </span>
         )}
       </div>
+      <button type="button" className="pill help-btn" aria-label="Nasıl oynanır?" title="Nasıl oynanır?" onClick={onHelp}>
+        <span aria-hidden="true">?</span>
+      </button>
     </header>
   )
 }
