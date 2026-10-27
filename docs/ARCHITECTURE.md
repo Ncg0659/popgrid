@@ -76,3 +76,10 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - Yalnızca `transform` / `opacity` canlanır; efekt öğeleri dokunmayı engellemez; Klasik Mod'da hiçbiri çizilmez.
 - Hareketi azalt: kaybolan kopyalar ve Çekiç kopyası çizilmez, parçacık yok, geçişler anlık; sesler çalar.
 - Sesler: `sound.ts` → `playJoker(kind)`, yalnızca osilatör (dosya yok). Aynı motor ve aynı `ready()` denetimi kullanılır: arka plan/ön plan, sessiz mod ve "ambient" ses oturumu davranışı değişmez.
+
+## Joker rehberi ve ilk kullanım tanıtımı (Aşama 6.4)
+- `src/help/JokerIntro.tsx`: tek kartlık "Jokerlerle tanış!" (oyundaki renkli joker rozetleri, hak sayıları, "Hadi oyna!"). Animasyon yok.
+- İçerik `src/help/content.ts` → `JOKER_INTRO` ve yardımdaki `jokerler` bölümü; hak sayıları `DEFAULT_FREE_JOKERS`'tan üretilir (metin oyunla çelişmez).
+- Kayıt `popgrid:v1:joker-intro` (`src/storage/jokerIntro.ts`): yalnızca Eğlence Modu'na ilk girişte kendiliğinden açılır (mod seçimi ya da Eğlence ile açılış). Klasik oyuncular hiç görmez. Depolama kapalıysa aynı oturumda tekrar açılmaz.
+- Açılış sırası: yeni oyuncuda önce 4 kartlık temel eğitim, Eğlence ile açılmışsa ardından joker tanıtımı.
+- Yardımda "Joker tanıtımını aç" düğmesi kartı tekrar açar. Kart oyunun üstünde açılır; oyun durumu değişmez, kapanınca odak "?" düğmesine döner.
