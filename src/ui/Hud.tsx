@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { GameMode } from '../engine/types'
 import type { Effect } from '../fx/effects'
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
@@ -13,10 +14,12 @@ interface Props {
   onRestart(): void
   /** "Nasıl Oynanır?" ekranını açar. */
   onHelp(): void
+  /** Rekor bu modun rekorudur; Eğlence'de farklı simge ve etiket. */
+  mode?: GameMode
 }
 
 /** Ses, logo, yeniden başlat; altında rekor ve büyük skor. */
-export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSound, onRestart, onHelp }: Props) {
+export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSound, onRestart, onHelp, mode = 'klasik' }: Props) {
   const base = import.meta.env.BASE_URL
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<number | undefined>(undefined)
@@ -85,10 +88,20 @@ export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSo
           </span>
         )}
       </div>
-      <div className="pill best" aria-label={`Rekor ${fmt(best)}`}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.8 10H4.8z" />
-        </svg>
+      <div
+        className="pill best"
+        data-mode={mode}
+        aria-label={mode === 'eglence' ? `Eğlence rekoru ${fmt(best)}` : `Rekor ${fmt(best)}`}
+      >
+        {mode === 'eglence' ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.8l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.8 10H4.8z" />
+          </svg>
+        )}
         <span>{fmt(best)}</span>
       </div>
       <div className="score-wrap">

@@ -21,4 +21,5 @@ export {
   rotateShapeId,
   refreshTray,
   minHammersToFit,
+  validateCharges,
 } from './jokers'
