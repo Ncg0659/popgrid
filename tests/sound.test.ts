@@ -40,13 +40,12 @@ class FakeCtx {
     return { gain: param, connect() {} }
   }
   createOscillator() {
-    const self = this
     return {
       type: '',
       frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
       connect() {},
-      start() {
-        self.tones++
+      start: () => {
+        this.tones++
       },
       stop() {},
     }
@@ -55,12 +54,11 @@ class FakeCtx {
     return {}
   }
   createBufferSource() {
-    const self = this
     return {
       buffer: null,
       connect() {},
-      start() {
-        self.primes++
+      start: () => {
+        this.primes++
       },
     }
   }
