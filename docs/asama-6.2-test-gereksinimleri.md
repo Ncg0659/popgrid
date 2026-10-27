@@ -45,3 +45,41 @@ Motor tarafı Aşama 6.1'de hazır; buradaki maddeler arayüzün motoru doğru k
 
 ## Gerçek cihaz (kullanıcı)
 - iPhone Safari'de çift dokunuş, Çekiç hedefleme, Döndür ve Bitir akışını kullanıcı dener ve sonucu bildirir. Bu madde kullanıcı denemeden "yapıldı" sayılmaz.
+
+## Durum (Aşama 6.2 sonu)
+Kısaltmalar: **B** = birim testi (Vitest, depoda, CI'da çalışır) · **T** = tarayıcı testi (Playwright, telefon emülasyonu, CDP dokunma olayları; bu çalışma ortamında çalıştırıldı, depoda değil) · **K** = kod incelemesi · **G** = gerçek cihaz (kullanıcı).
+
+| # | Durum | Nasıl doğrulandı |
+|---|---|---|
+| 1 | ✔ | T: joker düğmeleri yalnızca `onClick` kullanır; tek dokunuş → tek Yenile |
+| 2 | ✔ | T: 40 ms arayla iki dokunuş → tek Yenile (450 ms koruma), envanter kaydı değişmedi |
+| 3 | ✔ | B (aynı durumdan iki uygulama) + K: `useGame` jokerleri her zaman son durumdan (`gameRef`) hesaplar |
+| 4 | ✔ | T: Çekiç seçiliyken 25 ms arayla iki farklı bloğa dokunuş → yalnızca ilki kırıldı |
+| 5 | ✔ | T + B: ilk dönüş 1 hak, ikinci ücretsiz; parça yerleşince ücretsiz dönüş biter |
+| 6 | ✔ | T: Çekiç ve Döndür seçiliyken sürükleme → joker iptal, hak harcanmadı, parça yerleşti |
+| 7 | ◐ | K: jokerler ara durumu değil son durumu okur. Bu aşamada joker animasyonu yok; ayrı test 6.3'te (animasyonlar gelince) |
+| 8 | ✔ | T: oyun sonunda bütün joker düğmeleri kapalı; B: motor `gameOver` reddeder |
+| 9 | ✔ | T: boş hücreye Çekiç ve kare parçaya Döndür hak harcamaz; B: `noCharge`/`emptyCell`/`notRotatable` |
+| 10 | ✔ | T + B: Eğlence rekoru ayrı anahtarda; Klasik rekoru (66) değişmedi |
+| 11 | ✔ | T: mevcut `popgrid:v1:best` Klasik rekoru olarak görünüyor |
+| 12 | ◐ | K: rekor skor arttıkça modun anahtarına yazılır (aynı değeri tekrar yazmak zararsız); T: Bitir sonrası rekor = skor |
+| 13 | ✔ | T: Bitir → oyun sonu, "Yeni rekor!", Eğlence rekoru kaydedildi |
+| 14 | ✔ | T + B: seçilen mod kaydedilir, yeniden açılışta korunur; oyun ortasında yalnızca "Yeni oyun" ile değişir |
+| 15 | ✔ | T: "Yeniden oyna" → haklar yeniden 1/1/2 |
+| 16 | ✔ | B + T: ücretsiz önce, sonra envanter; kayıt ve oyun durumu aynı; sayfa yenilenince harcanan hak geri gelmez |
+| 17 | ◐ | B: depolama kapalıyken mod/envanter hata vermez. Kapalı depolamayla tarayıcı testi yapılmadı |
+| 18 | ✔ | T: eğitim/rehber (29) ve ses (9) tarayıcı testleri değişmeden geçti |
+| 19 | ✔ | T (320 ve 390 px): sıkıştın kartı, Bitir 71×48 px, açık jokerler motorun "işe yarar" hesabıyla aynı |
+| 20 | ✔ | T: 2 Döndür hakkı dururken kurtuluş yok → kart çıkmadan doğrudan oyun sonu |
+| 21 | ◐ | B: boşa giden son Çekiç oyunu bitirir (motor). Arayüzde ayrı senaryo yok; aynı motor sonucu kullanılır |
+| 22 | ✔ | T: 4 genişlikte Klasik ekran main ile **piksel piksel aynı**; joker öğesi yok |
+| 23 | ✔ | T: 320/375/390/430 px'te yatay kaydırma yok, sayfa ekrana sığıyor; tahta yalnızca 320×568'de 19 px küçülüyor |
+| 24 | ✔ | T: düğmeler en az 83×52 px; hak rozeti her zaman görünür; ekran okuyucu etiketi "Çekiç, 1 hak kaldı" |
+| 25 | ✔ | T: seçili joker satırında yönerge + Vazgeç/Tamam; Esc kapatır. (Tasarım: seçiliyken çubuk bu satıra dönüştüğü için "aynı düğmeye tekrar dokunma" yerine Vazgeç düğmesi var) |
+| 26 | ✔ | T: azaltılmış harekette Çekiç çalışıyor, geçişler 0 sn |
+| 27 | ✔ | T: sürükleme (33), efekt (15) ve Aşama 2 oynanış testleri geçti. Efekt testindeki yavaşlatılmış işlemci ölçümü main ile aynı aralıkta (44–50 kare/sn), sınırda oynak |
+| 28 | ✔ | T: her senaryoda arayüzdeki tahta/tepsi her adımda motorun aynı hamle + joker dizisiyle karşılaştırıldı |
+| 29 | ✔ | K: bu aşamada joker efekti yok; jokerler tohumlu motor üzerinden çalışır |
+| G | bekliyor | Kullanıcının iPhone'da denemesi |
+
+Ek bulgu (düzeltildi): oyunu bitiren son dokunuşun tarayıcı tıklaması, yeni açılan oyun sonu penceresinin düğmesine denk gelip oyunu sıfırlayabiliyordu. Pencere açıldıktan sonraki 450 ms'de gelen dokunuşlar artık yok sayılıyor (klavye hemen çalışır).

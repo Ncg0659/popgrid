@@ -8,12 +8,13 @@ export function JokerIcon({ kind }: { kind: JokerKind }) {
   if (kind === 'cekic') {
     return (
       <svg className="jk-icon" viewBox="0 0 32 32" aria-hidden="true">
-        {/* Sap */}
-        <rect x="14.2" y="12" width="4.6" height="17" rx="2.3" transform="rotate(-38 16.5 20.5)" className="jk-shade" />
-        <rect x="13.8" y="11.4" width="4.6" height="17" rx="2.3" transform="rotate(-38 16.1 19.9)" />
-        {/* Baş */}
-        <rect x="6.5" y="4.5" width="17" height="9" rx="3.6" transform="rotate(-38 15 9)" />
-        <rect x="9" y="6" width="6" height="2.4" rx="1.2" transform="rotate(-38 12 7.2)" className="jk-shine" />
+        {/* Düz çizilip bütün olarak eğilen çekiç: üstte baş, altta sap. */}
+        <g transform="rotate(-40 16 16)">
+          <rect x="13.8" y="11" width="4.4" height="18.5" rx="2.2" />
+          <rect x="5.5" y="4" width="21" height="9.5" rx="3.6" />
+          <rect x="5.5" y="4" width="4.2" height="9.5" rx="2" className="jk-shade" />
+          <rect x="11.5" y="6" width="9" height="2.4" rx="1.2" className="jk-shine" />
+        </g>
       </svg>
     )
   }
@@ -29,11 +30,11 @@ export function JokerIcon({ kind }: { kind: JokerKind }) {
   }
   return (
     <svg className="jk-icon" viewBox="0 0 32 32" aria-hidden="true">
-      {/* Küçük blok + saat yönünde ok */}
-      <rect x="10.5" y="11.5" width="11" height="11" rx="3" />
-      <rect x="12.5" y="13.2" width="4.5" height="2.2" rx="1.1" className="jk-shine" />
-      <path d="M6.5 15A10 10 0 0 1 24 7.6" className="jk-stroke" />
-      <path d="M27.4 4.2l-.6 8.2-7.4-3.6z" />
+      {/* Bloğun üstünden saat yönünde dönen ok */}
+      <path d="M5.5 16.5A10 10 0 0 1 22.5 8.6" className="jk-stroke" />
+      <path d="M27.6 5.2l-1 9.1-7.9-4.6z" />
+      <rect x="11" y="15" width="11.5" height="11.5" rx="3.2" />
+      <rect x="13.2" y="17" width="4.6" height="2.2" rx="1.1" className="jk-shine" />
     </svg>
   )
 }
