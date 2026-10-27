@@ -42,12 +42,13 @@
 - **Oyun sonu (Eğlence):** hiçbir parça sığmıyorsa `canRescue` eldeki jokerlerin *gerçek etkisine* bakar:
   Yenile'nin gerçek sonucu, her parça/yön için "sığması için kaç Çekiç gerekir". Kurtuluş varsa `stuck = true`
   (oyun sürer, arayüz "Bitir" sunar → `giveUp`), yoksa `gameOver = true`. Testte bağımsız kaba kuvvet aramasıyla doğrulanır.
-- **Haklar iki kaynaktan:** `jokers.free` (oyun başına ücretsiz, `DEFAULT_FREE_JOKERS`, deneysel) ve
+- **Haklar iki kaynaktan:** `jokers.free` (oyun başına ücretsiz, `DEFAULT_FREE_JOKERS` = Çekiç 1 / Yenile 1 / Döndür 2, deneysel) ve
   `jokers.inventory` (kalıcı envanterden bu oyuna getirilen; ileride yıldızla alınacak, şimdilik 0).
   Önce ücretsiz harcanır; envanterden harcanınca `jokerUsed.source = 'inventory'` olayı gelir ve arayüz kalıcı envanteri düşer.
   `grantJokers` envantere ekleme için saf yardımcıdır. Mağaza/yıldız yok.
 - **Rekor:** Klasik eski anahtarı (`popgrid:v1:best`) kullanır; Eğlence ayrı (`popgrid:v1:best:eglence`).
 - Simülasyon: `npm run sim:jokers` → `docs/sim-jokers.md`.
+- Aşama 6.2 (arayüz) test gereksinimleri: `docs/asama-6.2-test-gereksinimleri.md`.
 
 ## Gelecek: Günlük yarışma modu (not)
 Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi gerekir. Bu yüzden:

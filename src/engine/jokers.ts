@@ -32,9 +32,10 @@ import {
 } from './types'
 
 /**
- * Oyun başına ücretsiz haklar. DENEYSEL — jokerli simülasyonla ayarlanır (docs/sim-jokers.md).
+ * Oyun başına ücretsiz haklar: Çekiç 1, Yenile 1, Döndür 2.
+ * DENEYSEL — simülasyonla seçildi (docs/sim-jokers.md): 2/2/3 oyunu 3–5 kat uzatıyordu, 1/1/2 yaklaşık 2–3 kat.
  */
-export const DEFAULT_FREE_JOKERS: JokerCharges = { cekic: 2, yenile: 2, dondur: 3 }
+export const DEFAULT_FREE_JOKERS: JokerCharges = { cekic: 1, yenile: 1, dondur: 2 }
 export const NO_JOKERS: JokerCharges = { cekic: 0, yenile: 0, dondur: 0 }
 export const JOKER_KINDS: readonly JokerKind[] = ['cekic', 'yenile', 'dondur']
 

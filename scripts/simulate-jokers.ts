@@ -27,8 +27,8 @@ const SETUPS: ReadonlyArray<readonly [string, GameOptions]> = [
   ['Yalnız Yenile 2', { mode: 'eglence', freeJokers: { cekic: 0, yenile: 2, dondur: 0 } }],
   ['Yalnız Döndür 3', { mode: 'eglence', freeJokers: { cekic: 0, yenile: 0, dondur: 3 } }],
   ['1/1/1', { mode: 'eglence', freeJokers: { cekic: 1, yenile: 1, dondur: 1 } }],
-  ['1/1/2', { mode: 'eglence', freeJokers: { cekic: 1, yenile: 1, dondur: 2 } }],
-  ['2/2/3 (onaylı başlangıç)', { mode: 'eglence', freeJokers: { cekic: 2, yenile: 2, dondur: 3 } }],
+  ['1/1/2 (varsayılan)', { mode: 'eglence', freeJokers: { cekic: 1, yenile: 1, dondur: 2 } }],
+  ['2/2/3 (ilk öneri)', { mode: 'eglence', freeJokers: { cekic: 2, yenile: 2, dondur: 3 } }],
   ['3/3/5', { mode: 'eglence', freeJokers: { cekic: 3, yenile: 3, dondur: 5 } }],
 ]
 

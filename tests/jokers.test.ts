@@ -28,7 +28,13 @@ function deepFreeze<T>(value: T): T {
   return value
 }
 
-const fun = (free: JokerCharges = DEFAULT_FREE_JOKERS, inventory: JokerCharges = NO_JOKERS): GameOptions => ({
+/**
+ * Testlerin kendi hak seti. Davranış testleri oyunun varsayılan sayılarına bağlı değildir;
+ * varsayılan (1/1/2) ayrı bir testte doğrulanır.
+ */
+const TEST_JOKERS: JokerCharges = { cekic: 2, yenile: 2, dondur: 3 }
+
+const fun = (free: JokerCharges = TEST_JOKERS, inventory: JokerCharges = NO_JOKERS): GameOptions => ({
   mode: 'eglence',
   freeJokers: free,
   inventory,
@@ -154,9 +160,35 @@ describe('Klasik Mod değişmedi', () => {
 })
 
 describe('haklar ve envanter', () => {
-  it('Eğlence varsayılan hakları 2/2/3, envanter 0', () => {
+  it('Eğlence varsayılan hakları Çekiç 1, Yenile 1, Döndür 2; envanter 0', () => {
+    expect(DEFAULT_FREE_JOKERS).toEqual({ cekic: 1, yenile: 1, dondur: 2 })
     const s = newGame(1, DEFAULT_CONFIG, { mode: 'eglence' })
-    expect(s.jokers).toEqual({ free: { cekic: 2, yenile: 2, dondur: 3 }, inventory: NO_JOKERS })
+    expect(s.jokers).toEqual({ free: { cekic: 1, yenile: 1, dondur: 2 }, inventory: NO_JOKERS })
+  })
+
+  it('varsayılan haklar biter, sonra envanter harcanır; envanter ücretsiz hakka karışmaz', () => {
+    let s = newGame(6, DEFAULT_CONFIG, { mode: 'eglence', inventory: { cekic: 0, yenile: 1, dondur: 0 } })
+    expect(ok(applyJoker(s, { type: 'yenile' })).events[0]).toMatchObject({ source: 'free' })
+    s = ok(applyJoker(s, { type: 'yenile' })).state
+    const second = ok(applyJoker(s, { type: 'yenile' }))
+    expect(second.events[0]).toMatchObject({ source: 'inventory' })
+    expect(second.state.jokers).toEqual({
+      free: { cekic: 1, yenile: 0, dondur: 2 },
+      inventory: { cekic: 0, yenile: 0, dondur: 0 },
+    })
+    expect(applyJoker(second.state, { type: 'yenile' })).toMatchObject({ ok: false, reason: 'noCharge' })
+  })
+
+  it('aynı durumdan aynı joker iki kez uygulanırsa iki ayrı hak düşmez (motor saf)', () => {
+    // Arayüzde çift dokunuş aynı eski durumla iki kez çağırsa bile sonuç aynıdır;
+    // asıl koruma 6.2'de: arayüz her zaman son durumu kullanmalı (docs/asama-6.2-test-gereksinimleri.md).
+    const s = deepFreeze(newGame(6, DEFAULT_CONFIG, { mode: 'eglence' }))
+    const a = ok(applyJoker(s, { type: 'yenile' }))
+    const b = ok(applyJoker(s, { type: 'yenile' }))
+    expect(b.state).toEqual(a.state)
+    expect(a.state.jokers!.free.yenile).toBe(0)
+    // Sonuç durumuyla ikinci kez denenirse hak kalmadığı için reddedilir.
+    expect(applyJoker(a.state, { type: 'yenile' })).toMatchObject({ ok: false, reason: 'noCharge' })
   })
 
   it('önce ücretsiz haklar, bitince envanter harcanır; kaynak olayla bildirilir', () => {
