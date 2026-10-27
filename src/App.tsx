@@ -3,7 +3,7 @@ import { SoundDebug } from './audio/SoundDebug'
 import { HelpSheet } from './help/HelpSheet'
 import { Tutorial } from './help/Tutorial'
 import { tutorialStore } from './storage/tutorial'
-import { isSoundEnabled, playClear, playPlace, setSoundEnabled } from './audio/sound'
+import { isSoundEnabled, playClear, playJoker, playPlace, setSoundEnabled } from './audio/sound'
 import { FxCanvas } from './fx/FxCanvas'
 import { useReducedMotion } from './fx/useReducedMotion'
 import { useDrag } from './input/useDrag'
@@ -38,6 +38,12 @@ export default function App() {
     if (effect.lines > 0) playClear(effect.lines, effect.combo)
     else playPlace()
   }, [effect])
+
+  // Joker sesi: yalnızca joker gerçekten uygulandığında (jokerFx yalnızca başarılı sonuçta oluşur).
+  const jokerFx = g.jokerFx
+  useEffect(() => {
+    if (jokerFx) playJoker(jokerFx.kind)
+  }, [jokerFx])
 
   const toggleSound = () => {
     const next = !soundOn
@@ -131,6 +137,7 @@ export default function App() {
         hammer={armed === 'cekic'}
         onHammerCell={g.hammerCell}
         onCancelJoker={g.disarm}
+        jokerFx={jokerFx}
       />
       <Tray
         tray={game.tray}
@@ -143,6 +150,8 @@ export default function App() {
         rotateMode={armed === 'dondur'}
         rotatable={armed === 'dondur' ? rotatableSlots(game) : []}
         rotatePaid={game.rotatePaid}
+        jokerFx={jokerFx}
+        reducedMotion={reducedMotion}
       />
       {fun ? (
         <>
@@ -164,7 +173,7 @@ export default function App() {
           {hint}
         </p>
       )}
-      <FxCanvas effect={effect} boardRef={boardRef} reducedMotion={reducedMotion} />
+      <FxCanvas effect={effect} boardRef={boardRef} reducedMotion={reducedMotion} jokerFx={jokerFx} />
       {drag && (
         <div ref={floatRef} className="drag-float" aria-hidden="true">
           <PieceView piece={drag.piece} />

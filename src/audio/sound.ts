@@ -17,6 +17,8 @@
  */
 const SOUND_KEY = 'popgrid:v1:sound'
 
+export type JokerSound = 'cekic' | 'yenile' | 'dondur'
+
 /** Ses motorunu açmayı deneyen etkileşim olayları (belge düzeyinde, yakalama aşamasında dinlenir). */
 export const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const
 
@@ -65,6 +67,8 @@ export interface SoundSystem {
   unlock(gesture?: string): void
   playPlace(): void
   playClear(lines: number, combo: number): void
+  /** Joker sesleri (yalnızca Eğlence Modu, joker gerçekten uygulandığında). */
+  playJoker(kind: JokerSound): void
   status(): SoundStatus
   /** Belge ve pencere olaylarını dinlemeye başlar (bir kez). */
   install(): void
@@ -277,6 +281,12 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
       if (!ac || !master) return
       clearArpeggio(ac, master, lines, combo)
     },
+    playJoker(kind) {
+      // Aynı motor ve aynı "hazır mı" kontrolü: arka plan/ön plan ve sessiz mod davranışı değişmez.
+      const ac = ready()
+      if (!ac || !master) return
+      jokerSound(ac, master, kind)
+    },
     status: () => ({
       supported: !!env.AudioContextCtor,
       enabled,
@@ -358,6 +368,30 @@ function clearArpeggio(ac: AudioContext, out: AudioNode, lines: number, combo: n
   }
 }
 
+/**
+ * Joker sesleri: yalnızca osilatör (dosya, gürültü tamponu, filtre yok) — eski telefonlarda da hafif.
+ * - Çekiç: alçak, tok bir darbe + kısa, kuru bir çatırtı.
+ * - Yenile: iki notalı neşeli yükseliş + ince parıltı.
+ * - Döndür: yumuşak, kısa bir "vınn" (kayarak yükselen ses).
+ */
+function jokerSound(ac: AudioContext, out: AudioNode, kind: JokerSound): void {
+  if (kind === 'cekic') {
+    tone(ac, out, { freq: 150, dur: 0.14, type: 'sine', gain: 0.32, slide: 0.45 })
+    tone(ac, out, { freq: 95, dur: 0.09, type: 'triangle', gain: 0.14, slide: 0.7 })
+    tone(ac, out, { freq: 2300, dur: 0.03, type: 'triangle', gain: 0.05, slide: 0.4 })
+    tone(ac, out, { freq: 1500, at: 0.018, dur: 0.035, type: 'triangle', gain: 0.04, slide: 0.5 })
+    return
+  }
+  if (kind === 'yenile') {
+    tone(ac, out, { freq: 659.25, dur: 0.1, type: 'triangle', gain: 0.13, slide: 1.12 })
+    tone(ac, out, { freq: 987.77, at: 0.07, dur: 0.12, type: 'triangle', gain: 0.12 })
+    tone(ac, out, { freq: 1567.98, at: 0.13, dur: 0.1, type: 'sine', gain: 0.05 })
+    return
+  }
+  tone(ac, out, { freq: 520, dur: 0.1, type: 'sine', gain: 0.13, slide: 1.4 })
+  tone(ac, out, { freq: 780, at: 0.035, dur: 0.07, type: 'triangle', gain: 0.045, slide: 1.2 })
+}
+
 // ---------- Uygulamanın kullandığı tek ses sistemi ----------
 const system: SoundSystem | null =
   typeof window === 'undefined' || typeof document === 'undefined'
@@ -383,4 +417,5 @@ export const setSoundEnabled = (on: boolean): void => system?.setEnabled(on)
 export const unlockAudio = (): void => system?.unlock('react')
 export const playPlace = (): void => system?.playPlace()
 export const playClear = (lines: number, combo: number): void => system?.playClear(lines, combo)
+export const playJoker = (kind: JokerSound): void => system?.playJoker(kind)
 export const soundStatus = (): SoundStatus | null => system?.status() ?? null

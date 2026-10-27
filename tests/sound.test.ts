@@ -361,3 +361,68 @@ describe('ses sistemi: tercih, masaüstü ve hatalar', () => {
     expect(sound.status().state).toBe('yok')
   })
 })
+
+describe('ses sistemi: joker sesleri (Aşama 6.3)', () => {
+  it('açılışta (hareket yokken) joker sesi motor kurmaz ve çalmaz', () => {
+    const { sound } = setup()
+    sound.playJoker('cekic')
+    sound.playJoker('yenile')
+    sound.playJoker('dondur')
+    expect(FakeCtx.instances).toHaveLength(0)
+  })
+
+  it('üç joker sesi aynı motoru kullanır; Klasik sesleri değişmez (yerleştirme hâlâ 2 ton)', async () => {
+    const { sound, tap, ctxAt } = setup()
+    await tap()
+    sound.playPlace()
+    expect(ctxAt(0).tones).toBe(2)
+    sound.playJoker('cekic')
+    const afterHammer = ctxAt(0).tones
+    sound.playJoker('yenile')
+    const afterRefresh = ctxAt(0).tones
+    sound.playJoker('dondur')
+    expect(afterHammer - 2).toBe(4)
+    expect(afterRefresh - afterHammer).toBe(3)
+    expect(ctxAt(0).tones - afterRefresh).toBe(2)
+    expect(FakeCtx.instances).toHaveLength(1)
+  })
+
+  it('KULLANICI SENARYOSU: arka plana gidip dönünce joker sesi aynı motorla çalar (yeni motor yok)', async () => {
+    const { sound, tap, drag, background, foreground, ctxAt } = setup()
+    await tap()
+    await background()
+    sound.playJoker('cekic')
+    expect(ctxAt(0).tones).toBe(0) // arka planda ses yok
+    await foreground()
+    await drag()
+    sound.playJoker('dondur')
+    expect(FakeCtx.instances).toHaveLength(1)
+    expect(ctxAt(0).state).toBe('running')
+    expect(ctxAt(0).tones).toBe(2)
+    // pagehide/pageshow ile de aynı
+    await background('page')
+    await foreground('page')
+    sound.playJoker('yenile')
+    expect(FakeCtx.instances).toHaveLength(1)
+    expect(ctxAt(0).tones).toBe(5)
+  })
+
+  it('ses kapalıyken joker sesi çalmaz ve motor kurmaz', async () => {
+    const { sound, tap } = setup({ stored: 'off' })
+    await tap()
+    sound.playJoker('cekic')
+    expect(FakeCtx.instances).toHaveLength(0)
+  })
+
+  it('durmuş motorda joker sesi yeni motor kurmaz (yalnızca açık hareket kurar)', async () => {
+    const { sound, tap, drag, ctxAt } = setup()
+    await tap()
+    ctxAt(0).close()
+    await tick()
+    await drag()
+    sound.playJoker('cekic')
+    expect(FakeCtx.instances).toHaveLength(1)
+    await tap()
+    expect(FakeCtx.instances).toHaveLength(2)
+  })
+})

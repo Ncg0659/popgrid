@@ -68,3 +68,11 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - Özel bloklar: `Piece` tipine `kind` alanı ve `play` içinde yeni hamle tipleri.
 - Temalar: renkler motorda yalnızca 1–6 numaradır; görünüm tamamen CSS'tedir.
 - Başarımlar ve görevler: `play`'in döndürdüğü olaylar dinlenerek, motora dokunmadan.
+
+## Joker efektleri ve sesleri (Aşama 6.3)
+- `src/fx/jokerEffects.ts` (saf): `describeJokerFx` motorun `hammered` / `refreshed` / `rotated` olaylarından efekt tanımı üretir. Yalnızca başarılı `applyJoker` sonucundan çağrılır; geçersiz kullanım, iptal ve hedef seçimi efekt üretmez.
+- `useGame.jokerFx`: son başarılı jokerin efekti; yerleştirmede ve yeni oyunda temizlenir (boşalan yuvada tekrar oynamasın).
+- Çekiç: `JokerBoardFx` (ezilip dağılan kopya + darbe halkası) ve `FxCanvas` (12 küçük parçacık). Yenile: `Tray` içinde `.jk-out` (eski parça küçülür) + `.jk-in` (yenisi belirir). Döndür: `.jk-rot` (yeni şekil -90°'den yerine döner; ücretsiz dönüşte de).
+- Yalnızca `transform` / `opacity` canlanır; efekt öğeleri dokunmayı engellemez; Klasik Mod'da hiçbiri çizilmez.
+- Hareketi azalt: kaybolan kopyalar ve Çekiç kopyası çizilmez, parçacık yok, geçişler anlık; sesler çalar.
+- Sesler: `sound.ts` → `playJoker(kind)`, yalnızca osilatör (dosya yok). Aynı motor ve aynı `ready()` denetimi kullanılır: arka plan/ön plan, sessiz mod ve "ambient" ses oturumu davranışı değişmez.

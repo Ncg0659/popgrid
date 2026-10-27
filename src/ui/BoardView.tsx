@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 import { getShape } from '../engine'
 import { BoardFx } from '../fx/BoardFx'
+import { JokerBoardFx } from '../fx/JokerBoardFx'
+import type { JokerFx } from '../fx/jokerEffects'
 import type { Effect } from '../fx/effects'
 import { BOARD_SIZE, CELL_COUNT, type GameState, type Slot } from '../engine/types'
 import type { Origin, Preview } from './placement'
@@ -26,6 +28,8 @@ interface Props {
   hammer?: boolean
   onHammerCell?(cell: number): void
   onCancelJoker?(): void
+  /** Son başarılı jokerin efekti (Çekiç kırılması tahtada çizilir). */
+  jokerFx?: JokerFx | null
 }
 
 const INDICES = Array.from({ length: CELL_COUNT }, (_, i) => i)
@@ -54,6 +58,7 @@ export function BoardView({
   hammer = false,
   onHammerCell,
   onCancelJoker,
+  jokerFx = null,
 }: Props) {
   const pointerType = useRef<string>('mouse')
   // Çekiç hedefi: fareyle üzerine gelinen ya da klavye imlecinin olduğu hücre.
@@ -228,6 +233,7 @@ export function BoardView({
         })}
       </div>
       <BoardFx effect={effect} reducedMotion={reducedMotion} />
+      <JokerBoardFx fx={jokerFx} reducedMotion={reducedMotion} />
     </div>
   )
 }

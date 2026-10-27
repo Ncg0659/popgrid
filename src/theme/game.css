@@ -1764,3 +1764,97 @@ button {
     transform: none;
   }
 }
+
+/* =====================================================================
+ * Aşama 6.3 — Joker efektleri (yalnızca Eğlence Modu'nda, joker başarıyla uygulanınca).
+ * Yalnızca transform/opacity canlanır (düşük güçlü telefonlarda akıcı); hiçbiri dokunmayı engellemez.
+ * Hareketi azalt: genel kural bütün animasyonları kapatır; kaybolan kopyalar hiç çizilmez.
+ * ===================================================================== */
+
+/* Çekiç: blok önce ezilir (darbe), sonra hafifçe dönerek küçülüp dağılır. */
+.fx-hammer {
+  will-change: transform, opacity;
+  animation: hammer-break 320ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+.fx-hammer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fff;
+  opacity: 0;
+  animation: pop-flash 280ms ease-out both;
+}
+
+@keyframes hammer-break {
+  0% { transform: scale(1); opacity: 1; }
+  18% { transform: scale(1.08, 0.74); opacity: 1; }
+  42% { transform: scale(1.1) rotate(-6deg); opacity: 1; }
+  100% { transform: scale(0.2) rotate(20deg); opacity: 0; }
+}
+
+/* Darbe halkası */
+.fx-shock {
+  border-radius: 50%;
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 calc(var(--u) * 0.06) color-mix(in oklab, var(--c2) 55%, transparent);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: hammer-shock 320ms 40ms ease-out both;
+}
+
+@keyframes hammer-shock {
+  0% { transform: scale(0.4); opacity: 0.95; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+/* Yenile: eski parça küçülerek kaybolur, yenisi hafif zıplayarak belirir. */
+.jk-in,
+.jk-rot {
+  display: grid;
+  place-items: center;
+  will-change: transform, opacity;
+}
+
+.jk-in {
+  animation: jk-in 240ms 110ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+@keyframes jk-in {
+  0% { transform: scale(0.35); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.jk-out {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: jk-out 170ms ease-in both;
+}
+
+@keyframes jk-out {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.2) rotate(-12deg); opacity: 0; }
+}
+
+/* Döndür: yeni şekil, eski yönünden (-90°) saat yönünde dönerek yerine oturur. */
+.jk-rot {
+  animation: jk-rot 200ms cubic-bezier(0.25, 0.9, 0.35, 1.15) both;
+}
+
+@keyframes jk-rot {
+  0% { transform: rotate(-90deg) scale(0.86); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jk-out,
+  .fx-hammer,
+  .fx-shock {
+    display: none;
+  }
+}

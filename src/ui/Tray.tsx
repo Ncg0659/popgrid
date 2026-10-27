@@ -1,6 +1,7 @@
-import type { PointerEvent } from 'react'
+import type { PointerEvent, ReactNode } from 'react'
 import { canPlaceAnywhere, getShape } from '../engine'
 import type { Board, Slot, Tray as TrayState } from '../engine/types'
+import type { JokerFx } from '../fx/jokerEffects'
 import { PieceView } from './PieceView'
 
 /** useDrag'in her yuva için verdiği olay işleyicileri. */
@@ -28,9 +29,13 @@ interface Props {
   rotatable?: readonly Slot[]
   /** Ücretsiz dönüşü olan (ödenmiş) yuvalar. */
   rotatePaid?: readonly boolean[]
+  /** Son başarılı jokerin efekti: Yenile (eski parça küçülür, yenisi belirir) ve Döndür (dönüş). */
+  jokerFx?: JokerFx | null
+  reducedMotion?: boolean
 }
 
 const SLOTS: readonly Slot[] = [0, 1, 2]
+
 
 export function Tray({
   tray,
@@ -43,7 +48,28 @@ export function Tray({
   rotateMode = false,
   rotatable = [],
   rotatePaid = [false, false, false],
+  jokerFx = null,
+  reducedMotion = false,
 }: Props) {
+  /** Efekt olan yuvada parça, animasyonu yeniden başlatan anahtarlı bir sarmalayıcıya alınır. */
+  const pieceWithFx = (slot: Slot, node: ReactNode) => {
+    if (jokerFx?.kind === 'yenile' && jokerFx.slots.includes(slot)) {
+      return (
+        <span key={`in-${jokerFx.id}`} className="jk-in">
+          {node}
+        </span>
+      )
+    }
+    if (jokerFx?.kind === 'dondur' && jokerFx.slot === slot) {
+      return (
+        <span key={`rot-${jokerFx.id}`} className="jk-rot">
+          {node}
+        </span>
+      )
+    }
+    return node
+  }
+
   return (
     <div className="tray" role="group" aria-label="Parçalar">
       {SLOTS.map((slot) => {
@@ -75,7 +101,13 @@ export function Tray({
               if (e.detail === 0) onKeyboardSelect(slot)
             }}
           >
-            <PieceView piece={piece} />
+            {pieceWithFx(slot, <PieceView piece={piece} />)}
+            {!reducedMotion && jokerFx?.kind === 'yenile' && jokerFx.slots.includes(slot) && jokerFx.before[slot] && (
+              // Yenilenen yuvada eski parça küçülerek kaybolur (dokunmayı engellemez).
+              <span key={`out-${jokerFx.id}`} className="jk-out" aria-hidden="true">
+                <PieceView piece={jokerFx.before[slot]!} />
+              </span>
+            )}
             {free && (
               <span className="free-rot" aria-hidden="true" title="Ücretsiz dönüş">
                 ↻
