@@ -203,6 +203,9 @@ export function BoardView({
               className="cell"
               data-clearing={clearing || undefined}
               data-target={(hammer && target === i) || undefined}
+              // Çekiç modunda boş hücreler geri çekilir (:has() yerine doğrudan işaret: tahtadaki her
+              // değişiklikte ek stil hesabı yapılmasın).
+              data-empty={(hammer && color === 0) || undefined}
             >
               {color !== 0 && (
                 <span

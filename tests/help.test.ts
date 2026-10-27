@@ -31,7 +31,14 @@ describe('yardım içeriği', () => {
 
   it('şu an yayındaki içerikte gelecek özelliklerden söz edilmez', () => {
     const all = JSON.stringify(visibleSections()).toLocaleLowerCase('tr-TR')
-    for (const word of ['joker', 'bomba', 'şanslı', 'yıldız', 'topluluk', 'arkadaş']) expect(all.includes(word)).toBe(false)
+    // Jokerler Aşama 6.2 ile oyuna girdi (yardımda yalnızca kısa bir değinme; tam rehber 6.4'te).
+    for (const word of ['bomba', 'şanslı', 'yıldız', 'topluluk', 'arkadaş']) expect(all.includes(word)).toBe(false)
+  })
+
+  it('"döndürülemez" bilgisi Klasik Mod’a özel', () => {
+    const all = JSON.stringify(visibleSections())
+    expect(all.includes('Parçalar döndürülemez')).toBe(false)
+    expect(all.includes('Klasik Mod’da parçalar döndürülemez')).toBe(true)
   })
 
   it('bütün bölümlerin başlığı ve içeriği var; kimlikler benzersiz', () => {

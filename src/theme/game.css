@@ -1316,6 +1316,8 @@ button {
 
 /* ---------- Joker çubuğu ---------- */
 .joker-bar {
+  /* Düğme içi düzen çubuğun kendi genişliğine göre seçilir (aşağıdaki @container kuralları). */
+  container: jokers / inline-size;
   width: var(--board);
   height: 52px;
   display: grid;
@@ -1331,11 +1333,13 @@ button {
   position: relative;
   height: 52px;
   min-width: 0;
-  display: flex;
+  /* Simge her düğmede aynı yerde; ad kalan alanın ortasında. Üç düğme eşit genişlikte. */
+  display: grid;
+  grid-template-columns: 34px 1fr;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 6px;
+  justify-items: center;
+  column-gap: 8px;
+  padding: 0 8px 0 10px;
   border: 0;
   border-radius: 18px;
   background: var(--sticker);
@@ -1365,9 +1369,42 @@ button {
 }
 
 .jk-name {
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: clip;
+}
+
+/* Orta genişlik (375–390 px telefonlar): biraz daha küçük yazı ve simge, adlar sığar. */
+@container jokers (max-width: 379px) {
+  .joker-btn {
+    grid-template-columns: 32px 1fr;
+    column-gap: 7px;
+    font-size: 14px;
+  }
+
+  .joker-btn .jk-chip {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Dar çubuk: üç düğmede birden yalnızca simge + hak rozeti (dokunma alanı aynı kalır). */
+@container jokers (max-width: 339px) {
+  .joker-btn {
+    grid-template-columns: 34px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .joker-btn .jk-chip {
+    width: 34px;
+    height: 34px;
+  }
+
+  .jk-name {
+    display: none;
+  }
 }
 
 /* Renkli, hacimli joker rozeti (blok stiliyle aynı dil: alt gölge, üst ışık). */
@@ -1490,7 +1527,7 @@ button {
   outline-offset: calc(var(--u) * -0.14);
 }
 
-.board[data-hammer] .cell:not(:has(.blk)) {
+.board[data-hammer] .cell[data-empty] {
   opacity: 0.55;
 }
 
@@ -1500,7 +1537,7 @@ button {
   filter: brightness(1.1);
 }
 
-.board[data-hammer] .cell[data-target]:not(:has(.blk)) {
+.board[data-hammer] .cell[data-target][data-empty] {
   opacity: 1;
   box-shadow: inset 0 0 0 calc(var(--u) * 0.08) var(--ink-soft);
 }
@@ -1688,13 +1725,8 @@ button {
   min-height: 44px;
 }
 
-/* Dar ekran: joker adları küçülür, en dar ekranda yalnızca renkli simge + hak rozeti kalır. */
+/* Dar ekran: sıkıştın kartı ve yönerge yazısı küçülür. */
 @media (max-width: 380px) {
-  .joker-btn {
-    gap: 6px;
-    font-size: 14px;
-  }
-
   .stuck-text strong {
     font-size: 18px;
   }
@@ -1705,10 +1737,6 @@ button {
 }
 
 @media (max-width: 340px) {
-  .jk-name {
-    display: none;
-  }
-
   .joker-msg {
     font-size: 14px;
   }

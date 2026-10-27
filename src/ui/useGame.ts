@@ -300,7 +300,8 @@ export function useGame(): GameApi {
     },
     rotateSlot(slot) {
       if (armedRef.current !== 'dondur') return
-      runJoker({ type: 'dondur', slot })
+      // Başarılı dönüşten sonra eski uyarı silinir; çubuk "ücretsiz dönüş" yönergesini gösterir.
+      if (runJoker({ type: 'dondur', slot })) setNotice(null)
     },
     giveUp() {
       const result = engineGiveUp(gameRef.current)

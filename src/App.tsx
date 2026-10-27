@@ -64,15 +64,18 @@ export default function App() {
   })
 
   // Çekiç seçilince tahtaya odaklan (klavyeyle oklar + Enter); Esc her yerde seçili jokeri bırakır.
+  // Efekt yalnızca seçili joker değişince kurulur (her çizimde değil); disarm en güncel hâliyle ref'ten okunur.
+  const disarmRef = useRef(g.disarm)
+  disarmRef.current = g.disarm
   useEffect(() => {
     if (armed === 'cekic') boardRef.current?.focus({ preventScroll: true })
     if (!armed) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') g.disarm()
+      if (e.key === 'Escape') disarmRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [armed, g])
+  }, [armed])
 
   let hint = 'Bir parçayı tahtaya sürükle.'
   if (drag) hint = !preview ? 'Parçayı tahtanın üstüne getir.' : preview.ok ? 'Bırak ve yerleştir.' : 'Bu parça buraya sığmıyor.'

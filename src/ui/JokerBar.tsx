@@ -17,6 +17,9 @@ const INSTRUCTION: Record<'cekic' | 'dondur', string> = {
   dondur: 'Döndürmek için bir parçaya dokun.',
 }
 
+/** Döndür hakkı ödenmiş parça varken: aynı parçanın sonraki dönüşleri ücretsiz. */
+export const FREE_ROTATION_TEXT = 'Ücretsiz dönüş: ↻ işaretli parçaya dokunmaya devam et.'
+
 /**
  * Eğlence Modu joker çubuğu: tepsinin altında, ipucu satırının yerinde (ekran yüksekliği korunur).
  * Hedef bekleyen joker seçilince çubuk aynı yükseklikte bir yönerge + Vazgeç/Tamam satırına dönüşür.
@@ -26,6 +29,7 @@ export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm }
   if (armed) {
     const current = buttons.find((b) => b.kind === armed)
     const count = current?.count ?? 0
+    const instruction = armed === 'dondur' && current?.freeRotation ? FREE_ROTATION_TEXT : INSTRUCTION[armed]
     return (
       <div
         className="joker-bar"
@@ -41,7 +45,7 @@ export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm }
             </span>
           </span>
           <p className="joker-msg" aria-live="polite">
-            {message ?? INSTRUCTION[armed]}
+            {message ?? instruction}
           </p>
           <button type="button" className="btn-soft joker-cancel" onClick={onDisarm}>
             {armed === 'dondur' ? 'Tamam' : 'Vazgeç'}
