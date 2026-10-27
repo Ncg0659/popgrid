@@ -21,11 +21,13 @@ function displayMode(): string {
 }
 
 /**
- * Ses tanı paneli — yalnızca adres ?debug=ses ile açıldığında görünür.
- * iPhone'da ses motorunun durumunu okumak içindir; oyuna etkisi yoktur.
+ * Ses tanı paneli — yalnızca adres ?debug=ses ile açıldığında görünür; oyuna etkisi yoktur.
+ * Ekranın üstünde durur ve dokunuşları alttaki oyuna geçirir (düğmeleri hariç), böylece
+ * panel açıkken de sürükleyerek test edilebilir.
  */
 export function SoundDebug() {
   const [show] = useState(wanted)
+  const [open, setOpen] = useState(true)
   const [status, setStatus] = useState<SoundStatus | null>(null)
 
   useEffect(() => {
@@ -35,20 +37,40 @@ export function SoundDebug() {
   }, [show])
 
   if (!show) return null
+  const s = status
   return (
-    <aside className="sound-debug" aria-label="Ses tanı paneli">
-      <strong>Ses tanı</strong>
-      <span>Açılış: {displayMode()}</span>
-      <span>Ses tercihi: {status ? (status.enabled ? 'açık' : 'kapalı') : '…'}</span>
-      <span>Web Audio: {status ? (status.supported ? 'var' : 'YOK') : '…'}</span>
-      <span>Motor durumu: {status?.state ?? '…'}</span>
-      <span>Kurulan motor: {status?.contexts ?? 0}</span>
-      <span>Son etkileşim: {status?.lastGesture ?? '-'}</span>
-      <span>Ses oturumu: {status?.audioSession ?? '-'}</span>
-      <span>Son hata: {status?.lastError ?? '-'}</span>
-      <button type="button" onClick={() => playPlace()}>
-        Test sesi çal
-      </button>
+    <aside className="sound-debug" data-open={open || undefined} aria-label="Ses tanı paneli">
+      <div className="sound-debug-head">
+        <strong>Ses tanı</strong>
+        <span>
+          {s ? `${s.state} · saat ${s.clock.toFixed(1)} sn · motor ${s.contexts}` : '…'}
+        </span>
+        <button type="button" onClick={() => setOpen((o) => !o)}>
+          {open ? 'Küçült' : 'Aç'}
+        </button>
+      </div>
+      {open && (
+        <>
+          <span>Açılış: {displayMode()}</span>
+          <span>
+            Ses tercihi: {s ? (s.enabled ? 'açık' : 'kapalı') : '…'} · Web Audio: {s ? (s.supported ? 'var' : 'YOK') : '…'}
+          </span>
+          <span>
+            Kilit açıldı mı: {s ? (s.unlocked ? 'evet' : 'hayır') : '…'} · Arka plana gidiş: {s?.backgrounds ?? 0}
+          </span>
+          <span>Son etkileşim: {s?.lastGesture ?? '-'}</span>
+          <span>Ses oturumu: {s?.audioSession ?? '-'}</span>
+          <span>Son hata: {s?.lastError ?? '-'}</span>
+          <ol className="sound-debug-log">
+            {(s?.log ?? []).map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ol>
+          <button type="button" onClick={() => playPlace()}>
+            Test sesi çal
+          </button>
+        </>
+      )}
     </aside>
   )
 }

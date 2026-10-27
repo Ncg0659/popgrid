@@ -2,16 +2,18 @@
  * Oyun sesleri — Web Audio ile kod içinde üretilir (ses dosyası yok, 0 TL, internet gerekmez).
  *
  * iPhone (Safari ve ana ekrana eklenen uygulama) için kurallar:
- * - Ses motoru (AudioContext) yalnızca gerçek bir kullanıcı etkileşiminde açılır; ilk açılışta ses çalmaz.
- *   iOS'un kesin kabul ettiği touchend ve click olayları da dinlenir (yalnızca pointer olayları yetmeyebilir).
- * - Motor çalışmıyorsa her etkileşimde yeniden resume() denenir ve 1 örneklik sessiz bir ses çalınır.
- * - iOS arka plandan dönüşte motoru standart dışı "interrupted" durumuna sokabilir ya da "running"
- *   görünüp ses çıkarmayabilir (WebKit hataları 217606, 263627). Bu yüzden uygulama arka plana geçtiyse
- *   veya motor kesintiye uğradıysa, sonraki etkileşimde eski motor kapatılıp yenisi kurulur.
+ * - Ses motoru (AudioContext) yalnızca kullanıcı etkileşiminde kurulur; ilk açılışta ses çalmaz.
+ * - iOS bir motoru ancak "açık bir hareketle" (dokunup bırakma/tıklama, tuş) başlatır; touchstart ve
+ *   sürükleme bunu sağlamaz (WebKit 149367). Bir kez başlamış motor için bu kısıt kalkar.
+ * - Bu yüzden kilidi açılmış motor KORUNUR: arka plandan dönüşte (visibilitychange / pageshow) ve
+ *   sonraki her etkileşimde aynı motor resume() ile sürdürülür. Sürükleme de bunu yapabilir.
+ * - Motor "running" görünüp saati ilerlemiyorsa (WebKit 263627) ya da kapandıysa, yenisi yalnızca
+ *   bir sonraki AÇIK harekette ve bir kez kurulur — yeniden kurma döngüsü olmaz.
  * - Ses kapalıysa hiç motor kurulmaz; tercih localStorage'da saklanır.
  *
  * Bilinen platform sınırı: Web Audio'nun varsayılan ses oturumu "ambient" türündedir. iPhone sessiz
  * moddayken (yan anahtar / Eylem düğmesi / Denetim Merkezi) bu sesler iOS tarafından kısılır.
+ * Kullanıcı kararı: sessiz moda uyulur; audioSession.type değiştirilmez.
  */
 const SOUND_KEY = 'popgrid:v1:sound'
 
@@ -26,8 +28,14 @@ export interface SoundEnv {
     readonly visibilityState: string
     addEventListener(type: string, listener: () => void, options?: AddEventListenerOptions): void
   }
+  /** pageshow / pagehide olayları window üzerinde gelir (iOS ana ekran uygulamasında da). */
+  readonly win?: {
+    addEventListener(type: string, listener: () => void, options?: AddEventListenerOptions): void
+  }
   /** iOS 17+ navigator.audioSession.type (yalnızca tanı panelinde gösterilir; değiştirilmez). */
   readonly audioSessionType?: () => string | undefined
+  /** Zamanlayıcı (testlerde aynı kalır; burada yalnızca okunabilirlik için). */
+  readonly now?: () => number
 }
 
 export interface SoundStatus {
@@ -35,11 +43,19 @@ export interface SoundStatus {
   readonly enabled: boolean
   /** Motor durumu: yok / suspended / running / interrupted / closed */
   readonly state: string
-  /** Şimdiye kadar kurulan motor sayısı (arka plandan dönüşte artar). */
+  /** Şimdiye kadar kurulan motor sayısı. Sağlıklı oyunda 1 kalmalı. */
   readonly contexts: number
+  /** Motor en az bir kez gerçekten çalıştı mı (iOS kilidi açıldı mı)? */
+  readonly unlocked: boolean
+  /** Arka plana kaç kez gidildi. */
+  readonly backgrounds: number
+  /** Motorun saati (saniye): çalışıyorsa ilerler. */
+  readonly clock: number
   readonly lastGesture: string
   readonly audioSession: string
   readonly lastError: string
+  /** Son olaylar (en yenisi sonda): arka plan, dönüş, etkileşim, durum geçişi, sonuç. */
+  readonly log: readonly string[]
 }
 
 export interface SoundSystem {
@@ -50,21 +66,39 @@ export interface SoundSystem {
   playPlace(): void
   playClear(lines: number, combo: number): void
   status(): SoundStatus
-  /** Belge olaylarını dinlemeye başlar (bir kez). */
+  /** Belge ve pencere olaylarını dinlemeye başlar (bir kez). */
   install(): void
 }
+
+/**
+ * iOS'un kesin "açık kullanıcı hareketi" saydığı olaylar. Yeni bir motor yalnızca bunlarda kurulur.
+ * Sürükleme (pointerdown / sürüklemenin bittiği touchend) iOS'ta hareket sayılmaz (WebKit 149367).
+ */
+const EXPLICIT_GESTURES = new Set(['click', 'keydown', 'ses düğmesi'])
+
+/** Motor "running" görünüp saati ilerlemiyorsa durmuş kabul edilir (WebKit 263627). */
+export const STALL_CHECK_MS = 250
+const LOG_SIZE = 14
 
 export function createSoundSystem(env: SoundEnv): SoundSystem {
   let ctx: AudioContext | null = null
   let master: GainNode | null = null
-  /** Motor arka plana geçti ya da kesintiye uğradı: sonraki etkileşimde yenisi kurulur. */
-  let stale = false
+  /** Bu motor en az bir kez çalıştı: iOS'ta kilidi açıldı, sonraki resume() için hareket gerekmez. */
+  let unlocked = false
+  /** Motor gerçekten durmuş/kapanmış: bir sonraki AÇIK harekette (tıklama) bir kez yenisi kurulur. */
+  let needsRecreate = false
   /** resume() çağrıldı, sonucu bekleniyor: bu sırada planlanan sesler motor açılınca çalar. */
   let resuming = false
+  let checking = false
+  /** Durmuş motor için suspend/resume bir kez denendi mi? */
+  let kicked = false
   let contexts = 0
+  let backgrounds = 0
   let lastGesture = ''
   let lastError = ''
   let installed = false
+  const started = (env.now ?? Date.now)()
+  const log: string[] = []
   let enabled = (() => {
     try {
       return env.storage?.getItem(SOUND_KEY) !== 'off'
@@ -73,8 +107,15 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
     }
   })()
 
+  const stateOf = () => (ctx ? String(ctx.state) : 'yok')
+  const note = (msg: string) => {
+    const t = (((env.now ?? Date.now)() - started) / 1000).toFixed(1)
+    log.push(`${t}s ${msg}`)
+    if (log.length > LOG_SIZE) log.shift()
+  }
   const remember = (e: unknown) => {
     lastError = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+    note(`hata: ${lastError}`)
   }
 
   function dispose(): void {
@@ -82,6 +123,8 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
     ctx = null
     master = null
     resuming = false
+    unlocked = false
+    kicked = false
     if (old) old.close().catch(remember)
   }
 
@@ -94,13 +137,17 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
       gain.gain.value = 0.5
       gain.connect(ac.destination)
       ac.onstatechange = () => {
-        // "interrupted" WebKit'e özgüdür (aramalar, Siri, arka plan); kapanmış motor da geri gelmez.
+        if (ac !== ctx) return
         const st = String(ac.state)
-        if (ac === ctx && (st === 'interrupted' || st === 'closed')) stale = true
+        note(`motor → ${st}`)
+        if (st === 'running') unlocked = true
+        // Kapanmış motor geri gelmez. "interrupted" (arama, Siri, arka plan) ise kendi motorumuzla sürdürülür.
+        if (st === 'closed') needsRecreate = true
       }
       ctx = ac
       master = gain
       contexts += 1
+      note(`motor kuruldu (#${contexts})`)
       return ac
     } catch (e) {
       remember(e)
@@ -121,45 +168,95 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
     }
   }
 
-  function unlock(gesture = 'manual'): void {
-    if (!enabled) return
-    lastGesture = gesture
-    if (stale) {
-      dispose()
-      stale = false
+  /** "running" görünen motorun saati gerçekten ilerliyor mu? İlerlemiyorsa yenilemeye işaretle. */
+  function checkClock(ac: AudioContext): void {
+    if (checking) return
+    checking = true
+    const before = ac.currentTime
+    setTimeout(() => {
+      checking = false
+      if (ac !== ctx || String(ac.state) !== 'running') return
+      if (ac.currentTime > before) {
+        kicked = false
+        return
+      }
+      if (!kicked) {
+        // WebKit 263627 geçici çözümü: önce aynı motoru durdurup yeniden başlat, sonra tekrar ölç.
+        kicked = true
+        note('motor running ama saati durmuş → suspend/resume deneniyor')
+        ac.suspend()
+          .then(() => ac.resume())
+          .then(() => checkClock(ac))
+          .catch(remember)
+        return
+      }
+      note('saat hâlâ durmuş → sonraki tıklamada yeni motor kurulacak')
+      needsRecreate = true
+    }, STALL_CHECK_MS)
+  }
+
+  /** Mevcut motoru sürdürmeyi dener (kilidi açılmış motor için iOS hareket istemez). */
+  function resumeCurrent(ac: AudioContext, why: string): void {
+    if (String(ac.state) === 'running') {
+      checkClock(ac)
+      return
     }
-    const ac = ctx ?? create()
-    if (!ac || String(ac.state) === 'running') return
     primeSilently(ac)
     resuming = true
     ac.resume()
+      .then(() => {
+        if (ac !== ctx) return
+        note(`${why}: resume → ${String(ac.state)}`)
+        if (String(ac.state) === 'running') {
+          unlocked = true
+          checkClock(ac)
+        }
+      })
       .catch(remember)
       .finally(() => {
         if (ac === ctx) resuming = false
       })
   }
 
-  function onVisibility(): void {
-    if (!ctx) return
-    if (env.doc.visibilityState === 'hidden') {
-      stale = true
-      ctx.suspend().catch(remember)
-    } else if (enabled) {
-      // Masaüstünde bu yeterlidir; iOS'ta motor bir sonraki dokunuşta zaten yeniden kurulur.
-      ctx.resume().catch(remember)
+  function unlock(gesture = 'manual'): void {
+    if (!enabled) return
+    lastGesture = gesture
+    const explicit = EXPLICIT_GESTURES.has(gesture)
+    // Yeni motor yalnızca açık bir harekette ve gerçekten gerekiyorsa kurulur; dönüş başına en fazla bir kez.
+    if (needsRecreate && explicit) {
+      note(`${gesture}: durmuş motor yenileniyor`)
+      needsRecreate = false
+      dispose()
     }
+    if (!ctx) {
+      if (!create()) return
+    }
+    if (ctx) resumeCurrent(ctx, gesture)
+  }
+
+  function onHidden(source: string): void {
+    backgrounds += 1
+    note(`arka plan (${source}), motor ${stateOf()}`)
+    if (ctx && String(ctx.state) === 'running') ctx.suspend().catch(remember)
+  }
+
+  function onShown(source: string): void {
+    note(`ön plan (${source}), motor ${stateOf()}`)
+    // Kilidi açılmış motor hareket beklemeden sürdürülebilir; olmazsa ilk dokunuş tekrar dener.
+    if (ctx && enabled) resumeCurrent(ctx, `dönüş (${source})`)
   }
 
   function ready(): AudioContext | null {
-    if (!enabled || !ctx || !master || stale) return null
+    if (!enabled || !ctx || !master) return null
     const st = String(ctx.state)
-    return st === 'running' || (st === 'suspended' && resuming) ? ctx : null
+    return st === 'running' || (resuming && st !== 'closed') ? ctx : null
   }
 
   return {
     isEnabled: () => enabled,
     setEnabled(on) {
       enabled = on
+      note(`ses ${on ? 'açıldı' : 'kapatıldı'}`)
       try {
         env.storage?.setItem(SOUND_KEY, on ? 'on' : 'off')
       } catch {
@@ -183,11 +280,15 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
     status: () => ({
       supported: !!env.AudioContextCtor,
       enabled,
-      state: ctx ? String(ctx.state) : 'yok',
+      state: stateOf(),
       contexts,
+      unlocked,
+      backgrounds,
+      clock: ctx ? Math.round(ctx.currentTime * 10) / 10 : 0,
       lastGesture: lastGesture || '-',
       audioSession: env.audioSessionType?.() ?? 'desteklenmiyor',
       lastError: lastError || '-',
+      log: [...log],
     }),
     install() {
       if (installed) return
@@ -195,7 +296,12 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
       for (const type of UNLOCK_EVENTS) {
         env.doc.addEventListener(type, () => unlock(type), { capture: true, passive: true })
       }
-      env.doc.addEventListener('visibilitychange', onVisibility)
+      env.doc.addEventListener('visibilitychange', () => {
+        if (env.doc.visibilityState === 'hidden') onHidden('visibilitychange')
+        else onShown('visibilitychange')
+      })
+      env.win?.addEventListener('pagehide', () => onHidden('pagehide'))
+      env.win?.addEventListener('pageshow', () => onShown('pageshow'))
     },
   }
 }
@@ -267,6 +373,7 @@ const system: SoundSystem | null =
           }
         })(),
         doc: document,
+        win: window,
         audioSessionType: () => (navigator as unknown as { audioSession?: { type?: string } }).audioSession?.type,
       })
 system?.install()
