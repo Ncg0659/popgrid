@@ -752,5 +752,334 @@
    }
   ],
   "seconds": 379
+ },
+ {
+  "id": "deneyimli",
+  "name": "Deneyimli",
+  "bot": "planlayıcı bot: tepsideki parçaların bütün sıralarını ışın aramasıyla planlar",
+  "base": 100,
+  "klasik": {
+   "games": 100,
+   "meanStars": 202.74,
+   "medianStars": 148,
+   "p10": 48,
+   "p25": 89,
+   "p75": 292,
+   "p90": 402,
+   "meanLineStars": 131.79,
+   "meanEndStars": 70.95,
+   "meanScore": 1471.11,
+   "medianScore": 1090,
+   "meanMoves": 141.87,
+   "clearsPerGame": [
+    55.52,
+    3.91,
+    0.12
+   ],
+   "meanFreeUsed": 0,
+   "meanPurchasedUsed": 0,
+   "usedPurchasedShare": 0,
+   "histogram": [
+    0,
+    0,
+    0.01,
+    0.11,
+    0.18,
+    0.31,
+    0.34,
+    0.05
+   ],
+   "hitCap": 0
+  },
+  "eglence": {
+   "games": 100,
+   "meanStars": 565.8,
+   "medianStars": 485,
+   "p10": 154,
+   "p25": 309,
+   "p75": 741,
+   "p90": 1027,
+   "meanLineStars": 365.15,
+   "meanEndStars": 200.65,
+   "meanScore": 4059.99,
+   "medianScore": 3524,
+   "meanMoves": 375.73,
+   "clearsPerGame": [
+    151.1,
+    11.49,
+    0.55
+   ],
+   "meanFreeUsed": 3.03,
+   "meanPurchasedUsed": 0,
+   "usedPurchasedShare": 0,
+   "histogram": [
+    0,
+    0,
+    0,
+    0,
+    0.03,
+    0.12,
+    0.36,
+    0.49
+   ],
+   "hitCap": 0
+  },
+  "variants": [
+   {
+    "label": "+1 Çekiç",
+    "inventory": {
+     "cekic": 1,
+     "yenile": 0,
+     "dondur": 0
+    },
+    "cost": 25,
+    "summary": {
+     "games": 50,
+     "meanStars": 746.08,
+     "medianStars": 702,
+     "p10": 311,
+     "p25": 451,
+     "p75": 891,
+     "p90": 1243,
+     "meanLineStars": 480.98,
+     "meanEndStars": 265.1,
+     "meanScore": 5354.94,
+     "medianScore": 4990,
+     "meanMoves": 491.3,
+     "clearsPerGame": [
+      198.14,
+      15.54,
+      0.7
+     ],
+     "meanFreeUsed": 3.18,
+     "meanPurchasedUsed": 0.76,
+     "usedPurchasedShare": 0.76,
+     "histogram": [
+      0,
+      0,
+      0,
+      0,
+      0.02,
+      0.02,
+      0.28,
+      0.68
+     ],
+     "hitCap": 0
+    },
+    "deltaStars": 101.16000000000008,
+    "deltaScore": 724.6999999999998,
+    "deltaMedianScore": 1102
+   },
+   {
+    "label": "+1 Yenile",
+    "inventory": {
+     "cekic": 0,
+     "yenile": 1,
+     "dondur": 0
+    },
+    "cost": 40,
+    "summary": {
+     "games": 50,
+     "meanStars": 796.02,
+     "medianStars": 711,
+     "p10": 279,
+     "p25": 451,
+     "p75": 940,
+     "p90": 1497,
+     "meanLineStars": 513.12,
+     "meanEndStars": 282.9,
+     "meanScore": 5704.04,
+     "medianScore": 5036,
+     "meanMoves": 524.5,
+     "clearsPerGame": [
+      211.96,
+      16.28,
+      0.78
+     ],
+     "meanFreeUsed": 3.24,
+     "meanPurchasedUsed": 1,
+     "usedPurchasedShare": 1,
+     "histogram": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.3,
+      0.7
+     ],
+     "hitCap": 0
+    },
+    "deltaStars": 151.10000000000002,
+    "deltaScore": 1073.8000000000002,
+    "deltaMedianScore": 1148
+   },
+   {
+    "label": "+1 Döndür",
+    "inventory": {
+     "cekic": 0,
+     "yenile": 0,
+     "dondur": 1
+    },
+    "cost": 20,
+    "summary": {
+     "games": 50,
+     "meanStars": 665.78,
+     "medianStars": 558,
+     "p10": 216,
+     "p25": 417,
+     "p75": 877,
+     "p90": 1147,
+     "meanLineStars": 429.18,
+     "meanEndStars": 236.6,
+     "meanScore": 4777.16,
+     "medianScore": 3918,
+     "meanMoves": 439.92,
+     "clearsPerGame": [
+      178.14,
+      13.38,
+      0.6
+     ],
+     "meanFreeUsed": 3.06,
+     "meanPurchasedUsed": 0.2,
+     "usedPurchasedShare": 0.2,
+     "histogram": [
+      0,
+      0,
+      0,
+      0,
+      0.02,
+      0.06,
+      0.34,
+      0.58
+     ],
+     "hitCap": 0
+    },
+    "deltaStars": 20.860000000000014,
+    "deltaScore": 146.92000000000007,
+    "deltaMedianScore": 30
+   },
+   {
+    "label": "+1 / +1 / +1",
+    "inventory": {
+     "cekic": 1,
+     "yenile": 1,
+     "dondur": 1
+    },
+    "cost": 85,
+    "summary": {
+     "games": 50,
+     "meanStars": 955.46,
+     "medianStars": 838,
+     "p10": 328,
+     "p25": 645,
+     "p75": 1142,
+     "p90": 1725,
+     "meanLineStars": 615.96,
+     "meanEndStars": 339.5,
+     "meanScore": 6847.32,
+     "medianScore": 5987,
+     "meanMoves": 627.04,
+     "clearsPerGame": [
+      253.58,
+      19.88,
+      0.94
+     ],
+     "meanFreeUsed": 3.42,
+     "meanPurchasedUsed": 2.26,
+     "usedPurchasedShare": 1,
+     "histogram": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.02,
+      0.16,
+      0.82
+     ],
+     "hitCap": 0
+    },
+    "deltaStars": 310.5400000000001,
+    "deltaScore": 2217.08,
+    "deltaMedianScore": 2099
+   }
+  ],
+  "careers": [
+   {
+    "policy": "biriktir",
+    "careers": 1,
+    "length": 40,
+    "balanceCurve": [
+     [
+      10,
+      5155
+     ],
+     [
+      20,
+      10312
+     ],
+     [
+      30,
+      15021
+     ],
+     [
+      40,
+      19620
+     ]
+    ],
+    "finalBalanceMean": 19620,
+    "finalBalanceMedian": 19620,
+    "earnedPerGame": 490.5,
+    "spentPerGame": 0,
+    "boughtPerCareer": {
+     "cekic": 0,
+     "yenile": 0,
+     "dondur": 0
+    },
+    "meanScore": 3512.925,
+    "purchasedUsedPerGame": 0,
+    "firstHalfStars": 515.6,
+    "secondHalfStars": 465.4
+   },
+   {
+    "policy": "harca",
+    "careers": 1,
+    "length": 40,
+    "balanceCurve": [
+     [
+      10,
+      9217
+     ],
+     [
+      20,
+      18819
+     ],
+     [
+      30,
+      27274
+     ],
+     [
+      40,
+      35193
+     ]
+    ],
+    "finalBalanceMean": 35193,
+    "finalBalanceMedian": 35193,
+    "earnedPerGame": 1029.825,
+    "spentPerGame": 150,
+    "boughtPerCareer": {
+     "cekic": 76,
+     "yenile": 80,
+     "dondur": 45
+    },
+    "meanScore": 7351.425,
+    "purchasedUsedPerGame": 4.875,
+    "firstHalfStars": 1093.7,
+    "secondHalfStars": 965.95
+   }
+  ],
+  "seconds": 1726
  }
 ]
