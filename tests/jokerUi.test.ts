@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, newGame } from '../src/engine'
 import { emptyBoard, placeCells } from '../src/engine/board'
-import type { GameState, JokerCharges, Tray } from '../src/engine/types'
-import { jokerButtons, jokerLabel, rotatableSlots, usefulWhenStuck } from '../src/ui/jokerUi'
+import type { GameState, JokerCharges, JokerKind, Tray } from '../src/engine/types'
+import { jokerButtons, jokerLabel, rotatableSlots, usefulWhenStuck, type JokerButton } from '../src/ui/jokerUi'
 
 const fun = (free: JokerCharges) => newGame(3, DEFAULT_CONFIG, { mode: 'eglence', freeJokers: free })
 const withTray = (s: GameState, ids: (string | null)[]): GameState => ({
   ...s,
   tray: ids.map((id) => (id ? { shapeId: id, color: 1 } : null)) as unknown as Tray,
 })
-const byKind = (s: GameState) => Object.fromEntries(jokerButtons(s).map((b) => [b.kind, b]))
+function byKind(s: GameState): Record<JokerKind, JokerButton> {
+  const list = jokerButtons(s)
+  const find = (kind: JokerKind) => {
+    const b = list.find((x) => x.kind === kind)
+    if (!b) throw new Error(`düğme yok: ${kind}`)
+    return b
+  }
+  return { cekic: find('cekic'), yenile: find('yenile'), dondur: find('dondur') }
+}
 
 function checkerboard() {
   const cells: number[] = []

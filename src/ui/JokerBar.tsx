@@ -24,11 +24,21 @@ const INSTRUCTION: Record<'cekic' | 'dondur', string> = {
  */
 export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm }: Props) {
   if (armed) {
+    const current = buttons.find((b) => b.kind === armed)
+    const count = current?.count ?? 0
     return (
-      <div className="joker-bar" data-armed={armed} role="group" aria-label={`${JOKER_NAMES[armed]} seçili`}>
+      <div
+        className="joker-bar"
+        data-armed={armed}
+        role="group"
+        aria-label={`${JOKER_NAMES[armed]} seçili, ${count === 0 ? 'hakkın kalmadı' : `${count} hak kaldı`}`}
+      >
         <div className="joker-armed">
           <span className="jk-chip" data-kind={armed} aria-hidden="true">
             <JokerIcon kind={armed} />
+            <span className="jk-count" data-zero={count === 0 || undefined}>
+              {count}
+            </span>
           </span>
           <p className="joker-msg" aria-live="polite">
             {message ?? INSTRUCTION[armed]}

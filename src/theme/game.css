@@ -1500,8 +1500,9 @@ button {
   box-shadow: inset 0 0 0 calc(var(--u) * 0.08) var(--ink-soft);
 }
 
-/* Döndür: dönebilen parçalar öne çıkar; dönemeyenler soluk. */
-.slot {
+/* Döndür: dönebilen parçalar öne çıkar; dönemeyenler soluk.
+ * (position yalnızca Eğlence'de: Klasik'te çizim sırası ve tahta gölgesi birebir aynı kalsın.) */
+.game[data-mode='eglence'] .slot {
   position: relative;
 }
 
