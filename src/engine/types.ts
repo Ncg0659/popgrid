@@ -42,8 +42,41 @@ export interface GeneratorConfig {
   readonly rescue: RescueConfig
 }
 
+/** Klasik: jokersiz, bugünkü oyun. Eğlence: jokerli oyun (ayrı rekor). */
+export type GameMode = 'klasik' | 'eglence'
+
+export type JokerKind = 'cekic' | 'yenile' | 'dondur'
+export type JokerCharges = Readonly<Record<JokerKind, number>>
+
+/**
+ * Oyuncunun bu oyundaki joker hakları, iki ayrı kaynaktan:
+ * - free: oyun başına verilen ücretsiz haklar (oyun bitince kaybolur),
+ * - inventory: kalıcı envanterden bu oyuna getirilenler (ileride yıldızla alınacak; şimdilik hep 0).
+ * Harcama önce ücretsiz haklardan yapılır; envanterden harcanan her hak olayla bildirilir
+ * ki arayüz kalıcı envanteri düşebilsin.
+ */
+export interface JokerWallet {
+  readonly free: JokerCharges
+  readonly inventory: JokerCharges
+}
+
+/** Joker hamleleri. Hamleler gibi kaydedilip tekrar oynatılabilir. */
+export type JokerAction =
+  | { readonly type: 'cekic'; readonly cell: number }
+  | { readonly type: 'yenile' }
+  | { readonly type: 'dondur'; readonly slot: Slot }
+
 export interface GameState {
   readonly generatorVersion: number
+  readonly mode: GameMode
+  /** Klasik Mod'da null. */
+  readonly jokers: JokerWallet | null
+  /** Bu oyunda kaç kez Yenile kullanıldı (Yenile'nin kendi tohum akışı için). */
+  readonly refreshCount: number
+  /** Döndür hakkı ödenmiş yuvalar: o parça yerleşene kadar ek dönüşler ücretsiz. */
+  readonly rotatePaid: readonly [boolean, boolean, boolean]
+  /** Eğlence Modu: hiçbir parça sığmıyor ama jokerle kurtuluş mümkün. Klasik'te hep false. */
+  readonly stuck: boolean
   readonly seed: number
   readonly config: GeneratorConfig
   readonly board: Board
@@ -80,8 +113,27 @@ export type GameEvent =
   | { type: 'combo'; combo: number }
   | { type: 'newTriple'; tripleIndex: number; tray: Tray; rescued: boolean }
   | { type: 'gameOver'; score: number }
+  /** Eğlence Modu: parçalar sığmıyor ama bir joker oyunu kurtarabilir. */
+  | { type: 'stuck' }
+  | { type: 'jokerUsed'; joker: JokerKind; source: 'free' | 'inventory' }
+  | { type: 'hammered'; cell: number; color: Cell }
+  | { type: 'refreshed'; slots: readonly Slot[]; tray: Tray; guaranteed: boolean }
+  | { type: 'rotated'; slot: Slot; from: string; to: string; paid: boolean }
 
 export type InvalidReason = 'gameOver' | 'emptySlot' | 'doesNotFit'
+
+export type JokerInvalidReason =
+  | 'gameOver'
+  | 'notFunMode'
+  | 'noCharge'
+  | 'emptySlot'
+  | 'emptyCell'
+  | 'badCell'
+  | 'notRotatable'
+
+export type JokerResult =
+  | { readonly ok: true; readonly state: GameState; readonly events: readonly GameEvent[] }
+  | { readonly ok: false; readonly state: GameState; readonly reason: JokerInvalidReason }
 
 export type PlayResult =
   | { readonly ok: true; readonly state: GameState; readonly events: readonly GameEvent[] }

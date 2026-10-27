@@ -14,6 +14,7 @@
 | `scoring.ts` | Puan kuralları |
 | `generator.ts` | Üçlü parça üretimi ve kurtarma şansı |
 | `game.ts` | `newGame` ve `play` — tek giriş noktası |
+| `jokers.ts` | Eğlence Modu jokerleri: `applyJoker`, `giveUp`, kurtuluş analizi (`canRescue`), haklar |
 
 ## Puan
 - Yerleştirme: parçadaki her blok için +1.
@@ -26,6 +27,28 @@
 - Kurtarma yalnızca zar tutarsa VE hiçbir ham parça tahtaya sığmıyorsa devreye girer; bir parçayı normal ağırlıklı havuzdan sığan bir parçayla değiştirir.
 - Sözleşme: **aynı seed + aynı hamleler = aynı oyun.** Altın test ve tekrar oynatma testi bunu doğrular.
 
+## Modlar ve jokerler (Aşama 6.1)
+- `newGame(seed, config, { mode })`: `'klasik'` (varsayılan, jokersiz) ya da `'eglence'`.
+- **Klasik birebir aynı:** parça üretimi, puan, oyun sonu ve altın parmak izi değişmedi; `GENERATOR_VERSION` 1 kaldı.
+  Jokersiz bir Eğlence oyunu da Klasik ile hamle hamle aynı sonucu verir (test).
+- Joker hamleleri `applyJoker(durum, { type: 'cekic', cell } | { type: 'yenile' } | { type: 'dondur', slot })`.
+  `play` gibi saf: yeni durum + olaylar (`jokerUsed`, `hammered`, `refreshed`, `rotated`, `stuck`, `gameOver`).
+  Kaydedilen hamle + joker listesi tekrar oynatılınca aynı oyun çıkar.
+- Jokerler puan vermez, komboya dokunmaz, üçlü numarasını ilerletmez.
+- **Yenile** kendi tohum akışını kullanır: `mixSeed(mixSeed(seed ^ "JOKR", üçlüNo), yenilemeNo)`.
+  Normal üçlü sırası kaymaz. Boş hücre varsa yeni parçalardan en az biri sığar.
+- **Döndür** katalogdaki eşleşmeyi kullanır (37 şeklin hepsinin döndürülmüş hâli katalogda; 1×1, 2×2, 3×3 dönmez).
+  İlk dönüş 1 hak; o parça yerleşene ya da Yenile ile değişene kadar sonraki dönüşler ücretsiz (`rotatePaid`).
+- **Oyun sonu (Eğlence):** hiçbir parça sığmıyorsa `canRescue` eldeki jokerlerin *gerçek etkisine* bakar:
+  Yenile'nin gerçek sonucu, her parça/yön için "sığması için kaç Çekiç gerekir". Kurtuluş varsa `stuck = true`
+  (oyun sürer, arayüz "Bitir" sunar → `giveUp`), yoksa `gameOver = true`. Testte bağımsız kaba kuvvet aramasıyla doğrulanır.
+- **Haklar iki kaynaktan:** `jokers.free` (oyun başına ücretsiz, `DEFAULT_FREE_JOKERS`, deneysel) ve
+  `jokers.inventory` (kalıcı envanterden bu oyuna getirilen; ileride yıldızla alınacak, şimdilik 0).
+  Önce ücretsiz harcanır; envanterden harcanınca `jokerUsed.source = 'inventory'` olayı gelir ve arayüz kalıcı envanteri düşer.
+  `grantJokers` envantere ekleme için saf yardımcıdır. Mağaza/yıldız yok.
+- **Rekor:** Klasik eski anahtarı (`popgrid:v1:best`) kullanır; Eğlence ayrı (`popgrid:v1:best:eglence`).
+- Simülasyon: `npm run sim:jokers` → `docs/sim-jokers.md`.
+
 ## Gelecek: Günlük yarışma modu (not)
 Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi gerekir. Bu yüzden:
 - Bu modda kurtarma kapalı olmalıdır (`rescue.enabled = false`). Kurtarma tahtaya baktığı için farklı hamle yapan oyuncular farklı parçalar alırdı.
@@ -34,6 +57,6 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - Adalet için zorluk eğrisi skora değil üçlü numarasına bağlanmalıdır; aksi hâlde iyi oynayan oyuncu farklı parçalar görür. (Şu an zorluk eğrisi yok; eklenirse bu kural uygulanacak.)
 
 ## Gelecek özellikler için bağlantı noktaları
-- Jokerler / özel bloklar: `Piece` tipine `kind` alanı ve `play` içinde yeni hamle tipleri.
+- Özel bloklar: `Piece` tipine `kind` alanı ve `play` içinde yeni hamle tipleri.
 - Temalar: renkler motorda yalnızca 1–6 numaradır; görünüm tamamen CSS'tedir.
 - Başarımlar ve görevler: `play`'in döndürdüğü olaylar dinlenerek, motora dokunmadan.
