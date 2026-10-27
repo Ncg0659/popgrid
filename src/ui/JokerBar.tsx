@@ -13,12 +13,12 @@ interface Props {
 }
 
 const INSTRUCTION: Record<'cekic' | 'dondur', string> = {
-  cekic: 'Kırmak için dolu bir bloğa dokun.',
-  dondur: 'Döndürmek için bir parçaya dokun.',
+  cekic: 'Kırılacak bloğa dokun.',
+  dondur: 'Döndürülecek parçaya dokun.',
 }
 
 /** Döndür hakkı ödenmiş parça varken: aynı parçanın sonraki dönüşleri ücretsiz. */
-export const FREE_ROTATION_TEXT = 'Ücretsiz dönüş: ↻ işaretli parçaya dokunmaya devam et.'
+export const FREE_ROTATION_TEXT = 'Ücretsiz: aynı parçaya dokun.'
 
 /**
  * Eğlence Modu joker çubuğu: tepsinin altında, ipucu satırının yerinde (ekran yüksekliği korunur).

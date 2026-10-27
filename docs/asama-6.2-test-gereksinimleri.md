@@ -55,7 +55,7 @@ Kısaltmalar: **B** = birim testi (Vitest, depoda, CI'da çalışır) · **T** =
 | 2 | ✔ | T: 40 ms arayla iki dokunuş → tek Yenile (450 ms koruma), envanter kaydı değişmedi |
 | 3 | ✔ | B (aynı durumdan iki uygulama) + K: `useGame` jokerleri her zaman son durumdan (`gameRef`) hesaplar |
 | 4 | ✔ | T: Çekiç seçiliyken 25 ms arayla iki farklı bloğa dokunuş → yalnızca ilki kırıldı |
-| 5 | ✔ | T + B: ilk dönüş 1 hak, ikinci ücretsiz; ilk dönüşten sonra yönerge "Ücretsiz dönüş: ↻ işaretli parçaya dokunmaya devam et." olur; parça yerleşince ücretsiz dönüş biter |
+| 5 | ✔ | T + B: ilk dönüş 1 hak, ikinci ücretsiz; ilk dönüşten sonra yönerge "Ücretsiz: aynı parçaya dokun." olur; parça yerleşince ücretsiz dönüş biter |
 | 6 | ✔ | T: Çekiç ve Döndür seçiliyken sürükleme → joker iptal, hak harcanmadı, parça yerleşti |
 | 7 | → 6.3 | K: jokerler ara durumu değil son durumu okur. Joker animasyonları 6.3'te gelecek; bu madde o aşamada test edilecek (kullanıcı kararı) |
 | 8 | ✔ | T: oyun sonunda bütün joker düğmeleri kapalı; B: motor `gameOver` reddeder |
@@ -75,7 +75,7 @@ Kısaltmalar: **B** = birim testi (Vitest, depoda, CI'da çalışır) · **T** =
 | 22 | ✔ | T: 4 genişlikte Klasik ekran main ile **piksel piksel aynı**; joker öğesi yok |
 | 23 | ✔ | T: 320/375/390/430 px'te yatay kaydırma yok, sayfa ekrana sığıyor; tahta yalnızca 320×568'de 19 px küçülüyor |
 | 24 | ✔ | T: 320–430 px'te üç düğme eşit genişlikte, 52 px yüksek, simge her düğmede aynı konumda; adlar üçünde birlikte görünür (≥ 375 px) ya da birlikte gizlenir (320 px); hak rozeti her zaman görünür; ekran okuyucu etiketi "Çekiç, 1 hak kaldı" |
-| 25 | ✔ | T: seçili joker satırında yönerge + Vazgeç/Tamam; Esc kapatır. (Tasarım: seçiliyken çubuk bu satıra dönüştüğü için "aynı düğmeye tekrar dokunma" yerine Vazgeç düğmesi var) |
+| 25 | ✔ | T: seçili joker satırında yönerge + Vazgeç/Tamam (en az 83×44 px); bütün yönergeler 320 ve 390 px'te en fazla 2 satırla çubuğa sığıyor; Esc kapatır. (Tasarım: seçiliyken çubuk bu satıra dönüştüğü için "aynı düğmeye tekrar dokunma" yerine Vazgeç düğmesi var) |
 | 26 | ✔ | T: azaltılmış harekette Çekiç çalışıyor, geçişler 0 sn |
 | 27 | ✔ | T: sürükleme (33), efekt (15), ses (9), rehber (29), eğitim (9) ve Aşama 2 oynanış testleri geçti. Performans: aynı 20 Klasik hamlede tarayıcının ölçtüğü toplam iş main ile %0,2 farkla aynı; yavaşlatılmış işlemci kare ölçümü oynak (iki sürüm de ara sıra sınırı aşıyor) |
 | 28 | ✔ | T: her senaryoda arayüzdeki tahta/tepsi her adımda motorun aynı hamle + joker dizisiyle karşılaştırıldı |

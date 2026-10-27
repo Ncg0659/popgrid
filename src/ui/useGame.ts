@@ -98,8 +98,8 @@ export interface GameApi {
 }
 
 const REASON_TEXT: Partial<Record<JokerInvalidReason, string>> = {
-  emptyCell: 'Boş hücre. Dolu bir bloğa dokun.',
-  notRotatable: 'Bu parça döndürülünce aynı kalır.',
+  emptyCell: 'Boş hücre. Dolu bloğa dokun.',
+  notRotatable: 'Bu parça dönünce aynı kalır.',
   noCharge: 'Bu jokerin hakkı kalmadı.',
 }
 
