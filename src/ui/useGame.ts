@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_CONFIG, applyJoker, getShape, giveUp as engineGiveUp, newGame } from '../engine'
 import type { GameMode, GameState, JokerAction, JokerInvalidReason, Slot } from '../engine/types'
 import { describeEffect, type Effect } from '../fx/effects'
+import { describeJokerFx, type JokerFx } from '../fx/jokerEffects'
 import { inventoryStore, spendInventoryFor } from '../storage/inventory'
 import { modeStore } from '../storage/mode'
 import { loadBest, saveBest } from '../storage/records'
@@ -64,6 +65,8 @@ export interface GameApi {
   /** Hedef bekleyen joker (Çekiç: hücre, Döndür: parça). */
   readonly armed: ArmedJoker
   readonly notice: JokerNotice | null
+  /** Son BAŞARILI jokerin efekt tanımı (animasyon + ses). Geçersiz/iptal edilen joker üretmez. */
+  readonly jokerFx: JokerFx | null
   select(slot: Slot): void
   /** Dokunulan hücreye göre önizleme konumunu ayarlar. */
   aimAtCell(row: number, col: number): void
@@ -113,7 +116,9 @@ export function useGame(): GameApi {
   const [effect, setEffect] = useState<Effect | null>(null)
   const [armed, setArmedState] = useState<ArmedJoker>(null)
   const [notice, setNotice] = useState<JokerNotice | null>(null)
+  const [jokerFx, setJokerFx] = useState<JokerFx | null>(null)
   const effectId = useRef(0)
+  const jokerFxId = useRef(0)
   const noticeId = useRef(0)
   // Joker eylemleri her zaman EN SON durumu okur: çift dokunuş aynı eski durumu iki kez işleyemez.
   const gameRef = useRef(game)
@@ -159,6 +164,8 @@ export function useGame(): GameApi {
       setSelected(null)
       setAim(null)
       setArmed(null)
+      // Yerleştirme olunca eski joker efekti biter (boşalan yuvada yeniden oynamasın).
+      setJokerFx(null)
       return true
     },
     [setGame, setArmed],
@@ -174,7 +181,8 @@ export function useGame(): GameApi {
   /** Joker sonucunu uygular; envanterden harcanan her hak kalıcı kayıttan tam bir kez düşülür. */
   const runJoker = useCallback(
     (action: JokerAction): boolean => {
-      const result = applyJoker(gameRef.current, action)
+      const before = gameRef.current
+      const result = applyJoker(before, action)
       if (!result.ok) {
         const text = REASON_TEXT[result.reason]
         if (text) say(text)
@@ -182,6 +190,8 @@ export function useGame(): GameApi {
       }
       spendInventoryFor(result.events, inventoryStore)
       setGame(result.state)
+      jokerFxId.current += 1
+      setJokerFx(describeJokerFx(jokerFxId.current, result.events, before.tray))
       if (result.state.stuck) say('Hâlâ sığan parça yok. Başka bir joker dene ya da oyunu bitir.')
       return true
     },
@@ -205,6 +215,7 @@ export function useGame(): GameApi {
     setAim(null)
     setArmed(null)
     setNotice(null)
+    setJokerFx(null)
   }
 
   return {
@@ -219,6 +230,7 @@ export function useGame(): GameApi {
     effect,
     armed,
     notice,
+    jokerFx,
     select(slot) {
       if (game.gameOver || !game.tray[slot]) return
       setArmed(null)
