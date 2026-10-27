@@ -820,6 +820,18 @@ button {
   background: var(--well);
 }
 
+/* Çok kısa ekranlarda metnin devamı düğmelerin altında kalırsa, yumuşak geçiş "kaydır" ipucu verir. */
+.tutorial .sheet-actions::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 18px;
+  background: linear-gradient(to bottom, rgba(239, 230, 255, 0), var(--well));
+  pointer-events: none;
+}
+
 .tutorial-scene {
   min-height: calc(var(--mb) + 76px);
   display: grid;
