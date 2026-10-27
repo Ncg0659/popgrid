@@ -49,6 +49,8 @@ Ham tablolar: `docs/sim-economy.md` (yeniden üretmek için `npm run sim:economy
 - Neden: yıldız, oyun uzunluğuyla doğrusal artıyor; joker oyunu uzatıyor; uzayan oyun daha çok yıldız veriyor. İyi oyuncu için bu kendi kendini besleyen bir döngü. Jokerden başka harcama yeri olmadığı için bakiye sınırsız büyüyor ve mağaza 20–40 oyundan sonra anlamsızlaşıyor.
 
 ## Öneriler (UYGULANMADI — onayın gerekir)
+
+> **Güncelleme:** Bu öneriler dengeleme karşılaştırmasıyla sınandı (`docs/asama-7.1-dengeleme.md`). B ve D ("satın alınmışta oyun sonu yok") joker almayı yıldız kaybına çeviriyor; güncel öneri **yalnız Eğlence'de sert tavan 300**. Aşağıdaki ilk metin kayıt için korunuyor.
 Değerler değiştirilmedi. Aşağıdakiler, istersen önce simülasyonla denenebilecek seçeneklerdir:
 
 1. **Satın alınmış joker kullanılan oyunda oyun sonu ödülünü kaldırmak ya da yarıya indirmek.** Döngüyü doğrudan zayıflatır, kuralı açıklaması kolaydır. Tek başına yetmeyebilir: genel oranla, ek yıldızın büyük kısmının (yaklaşık üçte ikisi) hat yıldızından gelmesi beklenir; bu ayrıca ölçülmedi.

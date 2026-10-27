@@ -41,6 +41,7 @@ export const POLICIES: readonly StarPolicy[] = [
   policy({ id: 'C200', label: 'C · tavan 200', cap: 200 }),
   policy({ id: 'C250', label: 'C · tavan 250', cap: 250 }),
   policy({ id: 'C300', label: 'C · tavan 300', cap: 300 }),
+  policy({ id: 'C300y', label: 'C · yumuşak tavan 300 (üstü %25)', cap: 300, overCapRate: 0.25 }),
   policy({ id: 'D150', label: 'D · B + tavan 150', noEndIfPurchased: true, cap: 150 }),
   policy({ id: 'D200', label: 'D · B + tavan 200', noEndIfPurchased: true, cap: 200 }),
   policy({ id: 'D250', label: 'D · B + tavan 250', noEndIfPurchased: true, cap: 250 }),

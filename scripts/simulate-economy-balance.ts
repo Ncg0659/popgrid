@@ -181,6 +181,9 @@ interface Shard {
 function collect(profileId: string, shard: number, shards: number): void {
   const profile = PROFILES.find((p) => p.id === profileId)
   if (!profile) throw new Error(`Profil yok: ${profileId}`)
+  // SIM_POLICIES=C300y,... : yalnızca bu senaryoların kariyerleri (sonradan eklenen senaryo için); temel oyunlar tekrar oynanmaz.
+  const only = process.env.SIM_POLICIES?.split(',').filter(Boolean)
+  const policies = only ? POLICIES.filter((p) => only.includes(p.id)) : POLICIES
   const t0 = Date.now()
   const out: Shard = { profile: profile.id, base: { klasik: [], eglence: [] }, variants: {}, careers: [], seconds: 0 }
   type Unit = () => void
@@ -188,11 +191,11 @@ function collect(profileId: string, shard: number, shards: number): void {
   const memo = new Map<string, RawGame>()
   for (let c = 0; c < profile.careers; c++) {
     units.push(() => {
-      for (const p of POLICIES) out.careers.push(runCareer(profile, c, p, memo))
+      for (const p of policies) out.careers.push(runCareer(profile, c, p, memo))
       console.log(`${profile.name} [${shard}] kariyer ${c + 1}/${profile.careers} (${((Date.now() - t0) / 1000).toFixed(0)} sn)`)
     })
   }
-  const seeds = profile.careers * CAREER_LENGTH
+  const seeds = only ? 0 : profile.careers * CAREER_LENGTH
   for (let s = 1; s <= seeds; s++) {
     units.push(() => {
       out.base.klasik.push(playRaw(s, 'klasik', NO_JOKERS, profile.make(s)))
@@ -201,7 +204,7 @@ function collect(profileId: string, shard: number, shards: number): void {
       memo.set(`${s}|0.0.0`, fun)
     })
   }
-  for (const [label, inv] of VARIANTS) {
+  for (const [label, inv] of only ? [] : VARIANTS) {
     for (let s = 1; s <= profile.variants; s++) {
       units.push(() => {
         ;(out.variants[label] ??= []).push(playRaw(s, 'eglence', inv, profile.make(s)))
@@ -216,7 +219,8 @@ function collect(profileId: string, shard: number, shards: number): void {
   for (const [u] of careerUnits) u()
   out.seconds = Math.round((Date.now() - t0) / 1000)
   mkdirSync(CACHE, { recursive: true })
-  writeFileSync(join(CACHE, `${profile.id}-${shard}-of-${shards}.json`), JSON.stringify(out))
+  const suffix = only ? `-ek-${only.join('_')}` : ''
+  writeFileSync(join(CACHE, `${profile.id}-${shard}-of-${shards}${suffix}.json`), JSON.stringify(out))
   console.log(`${profile.name} [${shard}/${shards}] yazıldı (${out.seconds} sn)`)
 }
 
@@ -256,7 +260,8 @@ function load(): Merged[] {
   if (!existsSync(CACHE)) throw new Error(`Önbellek yok: ${CACHE}. Önce collect çalıştır.`)
   const files = readdirSync(CACHE).filter((f) => f.endsWith('.json'))
   return PROFILES.flatMap((profile) => {
-    const shards = files.filter((f) => f.startsWith(`${profile.id}-`)).map((f) => JSON.parse(readFileSync(join(CACHE, f), 'utf8')) as Shard)
+    const mine = files.filter((f) => f.startsWith(`${profile.id}-`))
+    const shards = mine.map((f) => JSON.parse(readFileSync(join(CACHE, f), 'utf8')) as Shard)
     if (shards.length === 0) return []
     const bySeed = (xs: RawGame[]) => xs.sort((a, b) => a.seed - b.seed)
     const variants: Record<string, RawGame[]> = {}
@@ -269,7 +274,7 @@ function load(): Merged[] {
         variants,
         careers: shards.flatMap((s) => s.careers),
         seconds: Math.max(...shards.map((s) => s.seconds)),
-        shards: shards.length,
+        shards: mine.filter((f) => !f.includes('-ek-')).length,
       },
     ]
   })
