@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { isSoundEnabled, playClear, playPlace, setSoundEnabled, unlockAudio } from './audio/sound'
+import { SoundDebug } from './audio/SoundDebug'
+import { isSoundEnabled, playClear, playPlace, setSoundEnabled } from './audio/sound'
 import { FxCanvas } from './fx/FxCanvas'
 import { useReducedMotion } from './fx/useReducedMotion'
 import { useDrag } from './input/useDrag'
@@ -53,13 +54,8 @@ export default function App() {
     <main
       className="game"
       data-dragging={drag ? '' : undefined}
-      onPointerDownCapture={(e) => {
-        lastPointer.current = e.pointerType
-        unlockAudio()
-      }}
-      // iOS Safari sesi dokunmanın bitişinde (touchend) açar; ikisinde de denenir.
-      onPointerUpCapture={unlockAudio}
-      onKeyDownCapture={unlockAudio}
+      // Ses motoru belge düzeyindeki dokunma/tıklama olaylarıyla açılır (src/audio/sound.ts).
+      onPointerDownCapture={(e) => (lastPointer.current = e.pointerType)}
     >
       <Hud
         score={game.score}
@@ -103,6 +99,7 @@ export default function App() {
           <PieceView piece={drag.piece} />
         </div>
       )}
+      <SoundDebug />
       {game.gameOver && (
         <GameOver score={game.score} best={g.best} isNewBest={game.score > g.bestAtStart && game.score > 0} onRestart={g.restart} />
       )}
