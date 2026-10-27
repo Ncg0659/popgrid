@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { SoundDebug } from './audio/SoundDebug'
 import { HelpSheet } from './help/HelpSheet'
+import { JokerIntro } from './help/JokerIntro'
 import { Tutorial } from './help/Tutorial'
+import { jokerIntroStore } from './storage/jokerIntro'
 import { tutorialStore } from './storage/tutorial'
 import { isSoundEnabled, playClear, playJoker, playPlace, setSoundEnabled } from './audio/sound'
 import { FxCanvas } from './fx/FxCanvas'
@@ -27,9 +29,13 @@ export default function App() {
   // Rehber katmanı: oyunun üstünde açılır; oyun durumu (tahta, skor, rekor, parçalar) hiç değişmez.
   const helpButton = () => document.querySelector<HTMLElement>('.help-btn')
   const restartButton = () => document.querySelector<HTMLElement>('.restart')
-  const [overlay, setOverlay] = useState<'none' | 'tutorial' | 'help' | 'mode'>(() =>
-    tutorialStore.shouldAutoShow(g.best) ? 'tutorial' : 'none',
-  )
+  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro'
+  // Açılışta: yeni oyuncuya temel eğitim; Eğlence ile açılan ve tanıtımı görmemiş oyuncuya joker tanıtımı.
+  const [overlay, setOverlay] = useState<Overlay>(() => {
+    if (tutorialStore.shouldAutoShow(g.best)) return 'tutorial'
+    if (jokerIntroStore.shouldAutoShow(g.game.mode)) return 'jokerIntro'
+    return 'none'
+  })
   const [soundOn, setSoundOn] = useState(isSoundEnabled)
 
   // Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi.
@@ -91,7 +97,8 @@ export default function App() {
 
   const startMode = (mode: 'klasik' | 'eglence') => {
     g.startGame(mode)
-    setOverlay('none')
+    // Eğlence Modu'na ilk giriş: tek kartlık joker tanıtımı (yalnızca bir kez kendiliğinden). Klasik etkilenmez.
+    setOverlay(jokerIntroStore.shouldAutoShow(mode) ? 'jokerIntro' : 'none')
   }
 
   return (
@@ -195,7 +202,8 @@ export default function App() {
       <Tutorial
         onClose={() => {
           tutorialStore.markDone()
-          setOverlay('none')
+          // Eğitim bittikten sonra, Eğlence ile açılmış ve tanıtımı görmemişse joker tanıtımı gelir.
+          setOverlay(jokerIntroStore.shouldAutoShow(game.mode) ? 'jokerIntro' : 'none')
         }}
         returnFocus={helpButton}
       />
@@ -210,7 +218,21 @@ export default function App() {
       />
     )}
     {overlay === 'help' && (
-      <HelpSheet onClose={() => setOverlay('none')} onReplayTutorial={() => setOverlay('tutorial')} returnFocus={helpButton} />
+      <HelpSheet
+        onClose={() => setOverlay('none')}
+        onReplayTutorial={() => setOverlay('tutorial')}
+        onReplayJokerIntro={() => setOverlay('jokerIntro')}
+        returnFocus={helpButton}
+      />
+    )}
+    {overlay === 'jokerIntro' && (
+      <JokerIntro
+        onClose={() => {
+          jokerIntroStore.markDone()
+          setOverlay('none')
+        }}
+        returnFocus={helpButton}
+      />
     )}
     </>
   )

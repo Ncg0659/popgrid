@@ -5,12 +5,14 @@ import { useDialog } from './useDialog'
 interface Props {
   onClose(): void
   onReplayTutorial(): void
+  /** "Jokerlerle tanış!" kartını tekrar açar. */
+  onReplayJokerIntro(): void
   returnFocus?: () => HTMLElement | null
 }
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
-function Block({ block, onReplayTutorial }: { block: HelpBlock; onReplayTutorial(): void }) {
+function Block({ block, onReplayTutorial, onReplayJokerIntro }: { block: HelpBlock; onReplayTutorial(): void; onReplayJokerIntro(): void }) {
   switch (block.kind) {
     case 'text':
       return <p>{block.text}</p>
@@ -60,11 +62,17 @@ function Block({ block, onReplayTutorial }: { block: HelpBlock; onReplayTutorial
           Eğitimi tekrar izle
         </button>
       )
+    case 'replayJokerIntro':
+      return (
+        <button type="button" className="btn-soft wide ji-replay" onClick={onReplayJokerIntro}>
+          Joker tanıtımını aç
+        </button>
+      )
   }
 }
 
 /** "Nasıl Oynanır?" ekranı. Alttaki oyuna dokunmaz; kapatınca oyun aynen devam eder. */
-export function HelpSheet({ onClose, onReplayTutorial, returnFocus }: Props) {
+export function HelpSheet({ onClose, onReplayTutorial, onReplayJokerIntro, returnFocus }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const dialog = useDialog<HTMLDivElement>(onClose, closeRef, returnFocus)
   return (
@@ -81,7 +89,7 @@ export function HelpSheet({ onClose, onReplayTutorial, returnFocus }: Props) {
             <section key={section.id} aria-labelledby={`help-${section.id}`}>
               <h3 id={`help-${section.id}`}>{section.title}</h3>
               {section.blocks.map((block, i) => (
-                <Block key={i} block={block} onReplayTutorial={onReplayTutorial} />
+                <Block key={i} block={block} onReplayTutorial={onReplayTutorial} onReplayJokerIntro={onReplayJokerIntro} />
               ))}
             </section>
           ))}
