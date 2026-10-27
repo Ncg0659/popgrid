@@ -57,7 +57,7 @@ Kısaltmalar: **B** = birim testi (Vitest, depoda, CI'da çalışır) · **T** =
 | 4 | ✔ | T: Çekiç seçiliyken 25 ms arayla iki farklı bloğa dokunuş → yalnızca ilki kırıldı |
 | 5 | ✔ | T + B: ilk dönüş 1 hak, ikinci ücretsiz; ilk dönüşten sonra yönerge "Ücretsiz: aynı parçaya dokun." olur; parça yerleşince ücretsiz dönüş biter |
 | 6 | ✔ | T: Çekiç ve Döndür seçiliyken sürükleme → joker iptal, hak harcanmadı, parça yerleşti |
-| 7 | → 6.3 | K: jokerler ara durumu değil son durumu okur. Joker animasyonları 6.3'te gelecek; bu madde o aşamada test edilecek (kullanıcı kararı) |
+| 7 | ✔ (6.3) | T: Çekiç efekti sürerken ikinci bloğa dokunuş yok sayıldı; Yenile animasyonu sürerken çift dokunuş tek hak harcadı ve yeni parça sürüklenebildi; Döndür animasyonu sürerken ikinci dokunuş ücretsiz dönüş yaptı (`ui-jokerfx`, Aşama 6.3) |
 | 8 | ✔ | T: oyun sonunda bütün joker düğmeleri kapalı; B: motor `gameOver` reddeder |
 | 9 | ✔ | T: boş hücreye Çekiç ve kare parçaya Döndür hak harcamaz; B: `noCharge`/`emptyCell`/`notRotatable` |
 | 10 | ✔ | T + B: Eğlence rekoru ayrı anahtarda; Klasik rekoru (66) değişmedi |
