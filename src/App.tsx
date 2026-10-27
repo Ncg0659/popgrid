@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { SoundDebug } from './audio/SoundDebug'
+import { HelpSheet } from './help/HelpSheet'
+import { Tutorial } from './help/Tutorial'
+import { tutorialStore } from './storage/tutorial'
 import { isSoundEnabled, playClear, playPlace, setSoundEnabled } from './audio/sound'
 import { FxCanvas } from './fx/FxCanvas'
 import { useReducedMotion } from './fx/useReducedMotion'
@@ -17,6 +20,11 @@ export default function App() {
   const boardRef = useRef<HTMLDivElement>(null)
   const { game, selected, preview, effect } = g
   const reducedMotion = useReducedMotion()
+  // Rehber katmanı: oyunun üstünde açılır; oyun durumu (tahta, skor, rekor, parçalar) hiç değişmez.
+  const helpButton = () => document.querySelector<HTMLElement>('.help-btn')
+  const [overlay, setOverlay] = useState<'none' | 'tutorial' | 'help'>(() =>
+    tutorialStore.shouldAutoShow(g.best) ? 'tutorial' : 'none',
+  )
   const [soundOn, setSoundOn] = useState(isSoundEnabled)
 
   // Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi.
@@ -51,9 +59,12 @@ export default function App() {
   else if (preview?.ok) hint = lastPointer.current === 'mouse' ? 'Tıkla ve yerleştir.' : 'Yerleştirmek için parçaya tekrar dokun.'
 
   return (
+    <>
     <main
       className="game"
       data-dragging={drag ? '' : undefined}
+      // Rehber açıkken oyun alanı dokunmaya ve odağa kapalıdır; durumu ise aynen korunur.
+      inert={overlay !== 'none'}
       // Ses motoru belge düzeyindeki dokunma/tıklama olaylarıyla açılır (src/audio/sound.ts).
       onPointerDownCapture={(e) => (lastPointer.current = e.pointerType)}
     >
@@ -65,6 +76,7 @@ export default function App() {
         soundOn={soundOn}
         onToggleSound={toggleSound}
         onRestart={g.restart}
+        onHelp={() => setOverlay('help')}
       />
       <BoardView
         gridRef={boardRef}
@@ -104,5 +116,18 @@ export default function App() {
         <GameOver score={game.score} best={g.best} isNewBest={game.score > g.bestAtStart && game.score > 0} onRestart={g.restart} />
       )}
     </main>
+    {overlay === 'tutorial' && (
+      <Tutorial
+        onClose={() => {
+          tutorialStore.markDone()
+          setOverlay('none')
+        }}
+        returnFocus={helpButton}
+      />
+    )}
+    {overlay === 'help' && (
+      <HelpSheet onClose={() => setOverlay('none')} onReplayTutorial={() => setOverlay('tutorial')} returnFocus={helpButton} />
+    )}
+    </>
   )
 }
