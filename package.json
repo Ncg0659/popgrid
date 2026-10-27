@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sim": "vite-node scripts/simulate.ts"
+    "sim": "vite-node scripts/simulate.ts",
+    "sim:jokers": "vite-node scripts/simulate-jokers.ts"
   },
   "dependencies": {
     "@fontsource-variable/baloo-2": "^5.0.0",

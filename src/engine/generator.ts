@@ -32,7 +32,7 @@ export function rescueChance(config: GeneratorConfig, score: number): number {
   return startPercent + Math.trunc(((endPercent - startPercent) * score) / rampScore)
 }
 
-function drawShape(rng: Rng): Shape {
+export function drawShape(rng: Rng): Shape {
   let roll = rng.nextInt(TOTAL_WEIGHT)
   for (const shape of SHAPES) {
     if (roll < shape.weight) return shape
@@ -41,7 +41,7 @@ function drawShape(rng: Rng): Shape {
   throw new Error('drawShape: ağırlık hesabı hatalı')
 }
 
-const drawColor = (rng: Rng): number => 1 + rng.nextInt(COLOR_COUNT)
+export const drawColor = (rng: Rng): number => 1 + rng.nextInt(COLOR_COUNT)
 
 export interface TripleResult {
   readonly tray: Tray

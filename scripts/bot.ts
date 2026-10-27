@@ -2,7 +2,22 @@
  * Simülasyon ve testler için otomatik oyuncular. Oyunun parçası değildir.
  * Botların kendi rastgeleliği oyunun tohumundan ayrıdır.
  */
-import { SHAPES, canPlace, canPlaceAnywhere, getShape, play, type GameState, type Move, type Rng, type Slot } from '../src/engine'
+import {
+  SHAPES,
+  canPlace,
+  canPlaceAnywhere,
+  getShape,
+  jokerCount,
+  minHammersToFit,
+  orientationsOf,
+  play,
+  type GameState,
+  type JokerAction,
+  type Move,
+  type Rng,
+  type Slot,
+} from '../src/engine'
+import { shapeCellsAt } from '../src/engine/board'
 import { BOARD_SIZE, type Board } from '../src/engine/types'
 
 export type Bot = (state: GameState) => Move | null
@@ -131,4 +146,71 @@ export const greedyBot: Bot = (state) => {
     }
   }
   return best
+}
+
+/**
+ * Joker kullanan oyuncu davranışı (simülasyon ve testler için). Yalnızca sıkışınca joker kullanır:
+ * 1. Bir parçayı döndürmek tek başına yetiyorsa Döndür (ödenmiş yuva önce).
+ * 2. Tek bir Çekiç yetiyorsa Çekiç.
+ * 3. Yenile hakkı varsa Yenile.
+ * 4. Yoksa Döndür + Çekiç birleşimi: gereken en az Çekiç'le sığan parça/yön seçilir;
+ *    yön farklıysa önce döndürülür, sonra o yerleşimin altındaki dolu hücreler kırılır.
+ * Kurtuluş yoksa null (oyun zaten bitmiş olur).
+ */
+export function jokerRescueAction(state: GameState): JokerAction | null {
+  if (!state.stuck || !state.jokers) return null
+  const hammers = jokerCount(state.jokers, 'cekic')
+  const canRotate = (slot: Slot) => state.rotatePaid[slot] || jokerCount(state.jokers, 'dondur') > 0
+  const slots = ([0, 1, 2] as const)
+    .filter((s) => state.tray[s] !== null)
+    .sort((a, b) => Number(state.rotatePaid[b]) - Number(state.rotatePaid[a]))
+
+  // 1. Yalnız döndürme
+  for (const slot of slots) {
+    if (!canRotate(slot)) continue
+    const ids = orientationsOf(state.tray[slot]!.shapeId).slice(1)
+    if (ids.some((id) => canPlaceAnywhere(state.board, getShape(id)))) return { type: 'dondur', slot }
+  }
+  // 2. Tek Çekiç
+  if (hammers >= 1) {
+    for (const slot of slots) {
+      const shape = getShape(state.tray[slot]!.shapeId)
+      if (minHammersToFit(state.board, shape) === 1) return { type: 'cekic', cell: firstBlockingCell(state, shape) }
+    }
+  }
+  // 3. Yenile
+  if (jokerCount(state.jokers, 'yenile') > 0) return { type: 'yenile' }
+  // 4. Döndür + Çekiç
+  let best: { slot: Slot; id: string; need: number } | null = null
+  for (const slot of slots) {
+    const current = state.tray[slot]!.shapeId
+    const ids = canRotate(slot) ? orientationsOf(current) : [current]
+    for (const id of ids) {
+      const need = minHammersToFit(state.board, getShape(id))
+      if (need <= hammers && (!best || need < best.need)) best = { slot, id, need }
+    }
+  }
+  if (!best) return null
+  if (best.id !== state.tray[best.slot]!.shapeId) return { type: 'dondur', slot: best.slot }
+  return { type: 'cekic', cell: firstBlockingCell(state, getShape(best.id)) }
+}
+
+/** Şeklin en az dolu hücreyle örtüştüğü yerleşimdeki ilk dolu hücre. */
+function firstBlockingCell(state: GameState, shape: (typeof SHAPES)[number]): number {
+  let bestCells: number[] | null = null
+  let bestFilled = Infinity
+  for (let row = 0; row <= BOARD_SIZE - shape.height; row++) {
+    for (let col = 0; col <= BOARD_SIZE - shape.width; col++) {
+      const cells = shapeCellsAt(shape, row, col)
+      if (!cells) continue
+      const filled = cells.filter((i) => state.board[i] !== 0).length
+      if (filled > 0 && filled < bestFilled) {
+        bestFilled = filled
+        bestCells = cells
+      }
+    }
+  }
+  const cell = bestCells?.find((i) => state.board[i] !== 0)
+  if (cell === undefined) throw new Error('firstBlockingCell: kırılacak hücre yok')
+  return cell
 }
