@@ -488,3 +488,150 @@ describe('kalıcı kayıt (localStorage)', () => {
     expect(store.load().state.stars).toBe(2 + 35)
   })
 })
+
+/**
+ * Aşama 7.1 ek: risk senaryoları. Bu testler BUGÜNKÜ davranışı belgeler.
+ * "BİLİNEN SINIRLAMA" diye işaretlenenler docs/asama-7.1-dengeleme.md'de kusur olarak raporlandı;
+ * düzeltme onaylanırsa bu testler bilerek değiştirilecek.
+ */
+describe('risk senaryoları', () => {
+  const started = (id = 'g') => ok(startGame(initialEconomy(), id, 'klasik'))
+
+  describe('hamle numarası atlama', () => {
+    it('atlanan numara sorun değil; geride kalan numara reddedilir, sonrakiler kabul edilir', () => {
+      let s = ok(awardMove(started(), 'g', 1, [cleared([0])]))
+      s = ok(awardMove(s, 'g', 3, [cleared([0])]))
+      expect(awardMove(s, 'g', 2, [cleared([0])]).ok).toBe(false)
+      s = ok(awardMove(s, 'g', 4, [cleared([0])]))
+      expect(s.stars).toBe(6)
+    })
+
+    it('BİLİNEN SINIRLAMA: yanlışlıkla çok büyük numara gelirse oyunun kalanında hamle ödülü verilmez (oyun sonu ödülü yine verilir)', () => {
+      let s = ok(awardMove(started(), 'g', 1000, []))
+      expect(awardMove(s, 'g', 2, [cleared([0])]).ok).toBe(false)
+      expect(awardMove(s, 'g', 999, [cleared([0])]).ok).toBe(false)
+      s = ok(finishGame(s, 'g', 500, null))
+      expect(s.stars).toBe(25)
+    })
+  })
+
+  describe('yinelenen oyun kimliği', () => {
+    it('bitmiş oyunun kimliğiyle yeni oyun başlatılamaz (yıldız verilmez, bakiye korunur)', () => {
+      let s = ok(finishGame(ok(awardMove(started('x'), 'x', 1, [cleared([0])])), 'x', 200, null))
+      const before = s.stars
+      const again = startGame(s, 'x', 'klasik')
+      expect(again.ok).toBe(false)
+      s = again.state
+      expect(awardMove(s, 'x', 1, [cleared([0])]).ok).toBe(false)
+      expect(s.stars).toBe(before)
+    })
+
+    it('BİLİNEN SINIRLAMA: etkin oyunun kimliği yeni oyunda tekrar kullanılırsa aynı oyun sayılır; ilk hamleler ödül almaz', () => {
+      let s = ok(awardMove(started('same'), 'same', 30, [cleared([0])]))
+      s = ok(startGame(s, 'same', 'klasik'))
+      // Arayüz yeni oyunda 1'den saymaya başlar: 1…30 eski sayılır.
+      expect(awardMove(s, 'same', 1, [cleared([0])]).ok).toBe(false)
+      expect(awardMove(s, 'same', 30, [cleared([0])]).ok).toBe(false)
+      expect(awardMove(s, 'same', 31, [cleared([0])]).ok).toBe(true)
+    })
+
+    it('BİLİNEN SINIRLAMA: son 20 oyundan eski bir kimlik yeniden kabul edilir (kimlikler rastgele olmalı)', () => {
+      let s = initialEconomy()
+      for (let i = 0; i <= HISTORY_LIMIT; i++) s = ok(finishGame(ok(startGame(s, `g${i}`, 'klasik')), `g${i}`, 0, null))
+      expect(startGame(s, 'g0', 'klasik').ok).toBe(true)
+      expect(startGame(s, `g${HISTORY_LIMIT}`, 'klasik').ok).toBe(false)
+    })
+  })
+
+  describe('yarıda bırakılan oyun', () => {
+    it('bildirilmiş satın alınmış kullanım düşülmüş kalır; bırakılan oyun sonradan bitirilemez', () => {
+      let s = ok(purchase(rich(100), 'cekic', 'p'))
+      s = ok(startGame(s, 'a', 'eglence', s.inventory))
+      s = ok(syncUsage(s, 'a', { free: { cekic: 0, yenile: 1, dondur: 2 }, inventory: NO_JOKERS }))
+      s = ok(startGame(s, 'b', 'eglence', s.inventory))
+      expect(s.inventory.cekic).toBe(0)
+      expect(s.totals.gamesAbandoned).toBe(1)
+      expect(finishGame(s, 'a', 900, null).ok).toBe(false)
+    })
+
+    it('BİLİNEN SINIRLAMA: joker kullanıldı ama bildirilmeden sayfa kapandıysa satın alınmış hak düşmez', () => {
+      let s = ok(purchase(rich(100), 'cekic', 'p'))
+      s = ok(startGame(s, 'a', 'eglence', s.inventory))
+      // syncUsage çağrılamadan oyun kayboldu.
+      s = ok(startGame(s, 'b', 'eglence', s.inventory))
+      expect(s.inventory.cekic).toBe(1)
+    })
+  })
+
+  describe('satın alma sırasında sekme yenileme', () => {
+    it('yazma olmadan yenilendi: ne yıldız düşer ne joker eklenir', () => {
+      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
+      // Satın alma çağrısı yazmaya ulaşmadan sayfa kapandı → depoda hiçbir şey değişmedi.
+      const reloaded = createEconomyStore(st).load().state
+      expect(reloaded.stars).toBe(50)
+      expect(reloaded.inventory.cekic).toBe(0)
+    })
+
+    it('yazmadan sonra yenilendi: ikisi birlikte kalıcı; aynı istek yeniden gönderilirse ikinci kez alınmaz', () => {
+      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
+      expect(createEconomyStore(st).purchase('cekic', 'tap-7').ok).toBe(true)
+      const after = createEconomyStore(st)
+      expect(after.load().state.stars).toBe(25)
+      expect(after.load().state.inventory.cekic).toBe(1)
+      const again = after.purchase('cekic', 'tap-7')
+      expect(again.ok).toBe(false)
+      if (!again.ok) expect(again.reason).toBe('duplicatePurchase')
+      expect(createEconomyStore(st).load().state.stars).toBe(25)
+    })
+
+    it('yazma başarısız (kota): alım yalnızca bellekte; yenilemede ikisi birlikte geri döner, yarım kalmaz', () => {
+      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
+      const failing = { getItem: st.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
+      const r = createEconomyStore(failing).purchase('yenile', 'p')
+      expect(r.ok && r.persisted).toBe(false)
+      const reloaded = createEconomyStore(st).load().state
+      expect(reloaded.stars).toBe(50)
+      expect(reloaded.inventory.yenile).toBe(0)
+    })
+  })
+
+  describe('iki sekme', () => {
+    it('sırayla yapılan işlemler birbirini silmez: bir sekmenin kazancı ötekinin alımıyla kaybolmaz', () => {
+      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(40)) })
+      const a = createEconomyStore(st)
+      const b = createEconomyStore(st)
+      a.startGame('ga', 'klasik')
+      a.awardMove('ga', 1, [cleared([0, 1, 2])])
+      expect(b.purchase('yenile', 'x').ok).toBe(true)
+      a.awardMove('ga', 2, [cleared([0])])
+      const s = createEconomyStore(st).load().state
+      expect(s.stars).toBe(40 + 10 - 40 + 2)
+      expect(s.inventory.yenile).toBe(1)
+    })
+
+    it('BİLİNEN SINIRLAMA: ikinci sekmede yeni oyun açılınca birinci sekmenin oyunu yıldız kazanamaz', () => {
+      const st = memoryStorage()
+      const a = createEconomyStore(st)
+      const b = createEconomyStore(st)
+      a.startGame('ga', 'klasik')
+      b.startGame('gb', 'klasik')
+      const r = a.awardMove('ga', 1, [cleared([0])])
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('wrongGame')
+      expect(a.finishGame('ga', 800, null).ok).toBe(false)
+    })
+
+    it('BİLİNEN SINIRLAMA: aynı satın alınmış joker iki sekmede birden kullanılabilir (envanter bir kez düşer)', () => {
+      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(ok(purchase(rich(25), 'cekic', 'p'))) })
+      const a = createEconomyStore(st)
+      const b = createEconomyStore(st)
+      const one = { cekic: 1, yenile: 0, dondur: 0 }
+      a.startGame('ga', 'eglence', one)
+      b.startGame('gb', 'eglence', one)
+      const spent = { free: { cekic: 0, yenile: 1, dondur: 2 }, inventory: NO_JOKERS }
+      expect(b.syncUsage('gb', spent).ok).toBe(true)
+      expect(a.syncUsage('ga', spent).ok).toBe(false)
+      expect(createEconomyStore(st).load().state.inventory.cekic).toBe(0)
+    })
+  })
+})

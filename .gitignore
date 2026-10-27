@@ -3,3 +3,6 @@ dist
 *.local
 .DS_Store
 sim-results/*.tmp
+
+# Ekonomi dengeleme simülasyonu ara verisi
+.sim-cache
