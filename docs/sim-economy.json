@@ -374,7 +374,7 @@
     "secondHalfStars": 29.898
    }
   ],
-  "seconds": 5
+  "seconds": 7
  },
  {
   "id": "ortalama",
@@ -416,14 +416,14 @@
   },
   "eglence": {
    "games": 500,
-   "meanStars": 126.188,
+   "meanStars": 125.944,
    "medianStars": 117,
    "p10": 51,
    "p25": 79,
    "p75": 163,
    "p90": 210,
    "meanLineStars": 79.978,
-   "meanEndStars": 46.21,
+   "meanEndStars": 45.966,
    "meanScore": 975.542,
    "medianScore": 902,
    "meanMoves": 91.066,
@@ -458,14 +458,14 @@
     "cost": 25,
     "summary": {
      "games": 500,
-     "meanStars": 146.438,
+     "meanStars": 145.728,
      "medianStars": 139,
      "p10": 67,
      "p25": 97,
      "p75": 188,
      "p90": 232,
      "meanLineStars": 92.558,
-     "meanEndStars": 53.88,
+     "meanEndStars": 53.17,
      "meanScore": 1127.914,
      "medianScore": 1086,
      "meanMoves": 103.802,
@@ -489,7 +489,7 @@
      ],
      "hitCap": 0
     },
-    "deltaStars": 20.249999999999986,
+    "deltaStars": 19.784000000000006,
     "deltaScore": 152.37199999999996,
     "deltaMedianScore": 184
    },
@@ -503,14 +503,14 @@
     "cost": 40,
     "summary": {
      "games": 500,
-     "meanStars": 149.712,
+     "meanStars": 148.24,
      "medianStars": 142,
      "p10": 72,
      "p25": 100,
      "p75": 187,
      "p90": 238,
      "meanLineStars": 94.802,
-     "meanEndStars": 54.91,
+     "meanEndStars": 53.438,
      "meanScore": 1148.886,
      "medianScore": 1096,
      "meanMoves": 106.376,
@@ -534,7 +534,7 @@
      ],
      "hitCap": 0
     },
-    "deltaStars": 23.523999999999987,
+    "deltaStars": 22.296000000000006,
     "deltaScore": 173.34399999999994,
     "deltaMedianScore": 194
    },
@@ -548,14 +548,14 @@
     "cost": 20,
     "summary": {
      "games": 500,
-     "meanStars": 135.076,
+     "meanStars": 134.34,
      "medianStars": 124,
      "p10": 56,
      "p25": 87,
      "p75": 170,
      "p90": 223,
      "meanLineStars": 85.496,
-     "meanEndStars": 49.58,
+     "meanEndStars": 48.844,
      "meanScore": 1041.414,
      "medianScore": 967,
      "meanMoves": 96.598,
@@ -579,7 +579,7 @@
      ],
      "hitCap": 0
     },
-    "deltaStars": 8.887999999999991,
+    "deltaStars": 8.396,
     "deltaScore": 65.87199999999996,
     "deltaMedianScore": 65
    },
@@ -593,14 +593,14 @@
     "cost": 85,
     "summary": {
      "games": 500,
-     "meanStars": 184.766,
+     "meanStars": 180.764,
      "medianStars": 178,
      "p10": 98,
      "p25": 131,
      "p75": 224,
      "p90": 285,
      "meanLineStars": 116.506,
-     "meanEndStars": 68.26,
+     "meanEndStars": 64.258,
      "meanScore": 1416.542,
      "medianScore": 1360,
      "meanMoves": 127.79,
@@ -624,7 +624,7 @@
      ],
      "hitCap": 0
     },
-    "deltaStars": 58.57799999999999,
+    "deltaStars": 54.82000000000001,
     "deltaScore": 440.9999999999999,
     "deltaMedianScore": 458
    }
@@ -637,48 +637,48 @@
     "balanceCurve": [
      [
       10,
-      1167.4
+      1165.1
      ],
      [
       20,
-      2392.8
+      2377.9
      ],
      [
       30,
-      3550
+      3535.1
      ],
      [
       40,
-      4690.8
+      4675.2
      ],
      [
       50,
-      5857.6
+      5842
      ],
      [
       60,
-      7116.5
+      7100.9
      ],
      [
       70,
-      8337.8
+      8315.2
      ],
      [
       80,
-      9495.7
+      9473.1
      ],
      [
       90,
-      10632.8
+      10606.7
      ],
      [
       100,
-      11877.1
+      11818.2
      ]
     ],
-    "finalBalanceMean": 11877.1,
-    "finalBalanceMedian": 11677,
-    "earnedPerGame": 118.771,
+    "finalBalanceMean": 11818.2,
+    "finalBalanceMedian": 11624,
+    "earnedPerGame": 118.182,
     "spentPerGame": 0,
     "boughtPerCareer": {
      "cekic": 0,
@@ -687,8 +687,8 @@
     },
     "meanScore": 919.863,
     "purchasedUsedPerGame": 0,
-    "firstHalfStars": 117.152,
-    "secondHalfStars": 120.39
+    "firstHalfStars": 116.84,
+    "secondHalfStars": 119.524
    },
    {
     "policy": "harca",
@@ -697,48 +697,48 @@
     "balanceCurve": [
      [
       10,
-      590
+      472.3
      ],
      [
       20,
-      1419.4
+      1126.3
      ],
      [
       30,
-      2153.8
+      1757.5
      ],
      [
       40,
-      2834.1
+      2349.4
      ],
      [
       50,
-      3677.3
+      3054.4
      ],
      [
       60,
-      4593.1
+      3777.8
      ],
      [
       70,
-      5493.3
+      4485.2
      ],
      [
       80,
-      6353.1
+      5204.6
      ],
      [
       90,
-      7339.2
+      5948.4
      ],
      [
       100,
-      8101.3
+      6572
      ]
     ],
-    "finalBalanceMean": 8101.3,
-    "finalBalanceMedian": 8098,
-    "earnedPerGame": 242.323,
+    "finalBalanceMean": 6572,
+    "finalBalanceMedian": 6470,
+    "earnedPerGame": 227.03,
     "spentPerGame": 161.31,
     "boughtPerCareer": {
      "cekic": 194.6,
@@ -747,11 +747,11 @@
     },
     "meanScore": 1849.707,
     "purchasedUsedPerGame": 5.524,
-    "firstHalfStars": 234.706,
-    "secondHalfStars": 249.94
+    "firstHalfStars": 222.248,
+    "secondHalfStars": 231.812
    }
   ],
-  "seconds": 379
+  "seconds": 445
  },
  {
   "id": "deneyimli",
