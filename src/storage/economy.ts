@@ -25,6 +25,7 @@ import { applyJoker } from '../engine/jokers'
 import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerKind, JokerWallet } from '../engine/types'
 import {
   awardMove,
+  bringPurchasedIntoGame,
   finishGame,
   purchase,
   startGame,
@@ -97,7 +98,11 @@ export interface EconomyStore {
   useJoker(gameId: string, game: GameState, action: JokerAction): JokerUseResult
   syncUsage(gameId: string, wallet: JokerWallet | null): StoreResult
   finishGame(gameId: string, finalScore: number, wallet: JokerWallet | null): StoreResult
-  purchase(kind: JokerKind, requestId: string): StoreResult
+  /**
+   * Satın alır. intoGameId verilirse ve o Eğlence oyunu etkinse, joker aynı yazmada o oyuna da getirilir
+   * (sonuçta intoGame: true); arayüz oyunun cüzdanına 1 ekler.
+   */
+  purchase(kind: JokerKind, requestId: string, intoGameId?: string): StoreResult & { readonly intoGame?: boolean }
 }
 
 /** Rastgele kimlik (oyun ya da sekme). Tohumdan TÜRETİLMEZ (K4): aynı tohum tekrar oynansa da kimlik yenidir. */
@@ -218,7 +223,20 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
     syncUsage: (gameId, wallet) => run((s) => syncUsage(s, gameId, wallet)),
     finishGame: (gameId, finalScore, wallet) => run((s) => finishGame(s, gameId, finalScore, wallet)),
     // Aşama 7.2: satın alma yalnızca kalıcı kayıt başarılıysa olur; yazılamazsa bakiye ve envanter aynen kalır.
-    purchase: (kind, requestId) => run((s) => purchase(s, kind, requestId), { requirePersist: true }),
+    purchase(kind, requestId, intoGameId) {
+      let intoGame = false
+      const r = run(
+        (s) => {
+          const p = purchase(s, kind, requestId)
+          if (!p.ok || !intoGameId) return p
+          const b = bringPurchasedIntoGame(p.state, intoGameId, kind)
+          intoGame = b.brought
+          return { ...p, state: b.state }
+        },
+        { requirePersist: true },
+      )
+      return r.ok ? { ...r, intoGame } : r
+    },
   }
   return store
 }

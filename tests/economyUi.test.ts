@@ -50,12 +50,16 @@ describe('mağaza görünümü', () => {
 
   it('ücretsiz haklar notu 1 / 1 / 2 ve "bir sonraki Eğlence oyunu" bilgisini içerir', () => {
     expect(FREE_RIGHTS_NOTE).toContain('Çekiç 1, Yenile 1, Döndür 2')
-    expect(FREE_RIGHTS_NOTE).toContain('bir sonraki Eğlence oyununda')
+    expect(FREE_RIGHTS_NOTE).toContain('hemen oyuna eklenir')
+    expect(FREE_RIGHTS_NOTE).toContain('sonraki Eğlence oyununda')
   })
 
   it('satın alma mesajları: yalnızca başarıda "alındı"; başarısızlıkta kayıp olmadığı söylenir', () => {
     // Aşama 7.2 R3: başarı mesajı jokerin bir sonraki Eğlence oyununda kullanılacağını söyler.
     expect(purchaseMessage('cekic', { ok: true })).toBe('Çekiç alındı! Bir sonraki Eğlence oyununda kullanabilirsin.')
+    // Eğlence oyunu sürerken alınan joker oyuna hemen eklenir.
+    expect(purchaseMessage('cekic', { ok: true, intoGame: true })).toBe('Çekiç alındı! Hemen kullanabilirsin.')
+    expect(purchaseMessage('dondur', { ok: true, intoGame: false })).toBe('Döndür alındı! Bir sonraki Eğlence oyununda kullanabilirsin.')
     expect(purchaseMessage('yenile', { ok: false, reason: 'insufficientStars' })).toBe('Yeterli yıldızın yok.')
     expect(purchaseMessage('yenile', { ok: false, reason: 'storageError' })).toContain('değişmedi')
     expect(purchaseMessage('yenile', { ok: false, reason: 'otherTab' })).toContain('başka bir sekmede')

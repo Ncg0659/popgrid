@@ -10,8 +10,8 @@ interface Props {
   state: EconomyState
   status: EconomyStatus
   persistent: boolean
-  /** Tek dokunuşla satın alır; sonuç mesajını döndürür (başarılıysa ok: true). */
-  onBuy(kind: JokerKind): { ok: boolean; text: string }
+  /** Tek dokunuşla satın alır; sonuç mesajını döndürür (başarılıysa ok: true). Çift dokunuş korumasında null. */
+  onBuy(kind: JokerKind): { ok: boolean; text: string } | null
   /** Başka sekme sahipse: "Bu sekmede devam et" (sahipliği bu sekmeye al). */
   canTakeOver: boolean
   onTakeOver(): void
@@ -21,7 +21,7 @@ interface Props {
 
 /**
  * Yıldız Mağazası: ekranın altından açılan panel. Oyunun üstünde açılır; tahta, parçalar ve skor değişmez.
- * Satın alınan jokerler kalıcı envantere eklenir ve bir sonraki Eğlence oyununda hazır olur.
+ * Satın alınan jokerler kalıcı envantere eklenir; Eğlence oyunu sürüyorsa o oyuna da hemen eklenir.
  */
 export function ShopSheet({ state, status, persistent, onBuy, canTakeOver, onTakeOver, onClose, returnFocus }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -39,6 +39,7 @@ export function ShopSheet({ state, status, persistent, onBuy, canTakeOver, onTak
 
   const buy = (kind: JokerKind) => {
     const r = onBuy(kind)
+    if (!r) return
     toastId.current += 1
     setToast({ id: toastId.current, text: r.text, ok: r.ok })
   }

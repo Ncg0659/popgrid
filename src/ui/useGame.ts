@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, getShape, giveUp as engineGiveUp, newGame } from '../engine'
-import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerInvalidReason, Slot } from '../engine/types'
+import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, getShape, giveUp as engineGiveUp, grantJokers, newGame } from '../engine'
+import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerInvalidReason, JokerKind, Slot } from '../engine/types'
 import { describeEffect, type Effect } from '../fx/effects'
 import { describeJokerFx, type JokerFx } from '../fx/jokerEffects'
 import { newGameId, type StoreFailure } from '../storage/economy'
@@ -137,6 +137,13 @@ export interface GameApi {
   readonly gameStars: GameStars | null
   /** Kısa yıldız bilgisi (ör. 300 sınırına ulaşıldı). id her mesajda artar. */
   readonly starNotice: JokerNotice | null
+  /**
+   * Mağazadan alınan joker bu oyuna hemen eklenebilir mi? Evetse defter kimliği (satın alma bununla yapılır),
+   * değilse undefined (Klasik, biten oyun, deftere kayıtsız oyun).
+   */
+  purchaseTarget(): string | undefined
+  /** Satın alma defterde bu oyuna getirildikten sonra oyunun cüzdanına 1 ekler (tahta, skor, parçalar aynı kalır). */
+  grantPurchased(gameId: string, kind: JokerKind): boolean
 }
 
 const REASON_TEXT: Partial<Record<JokerInvalidReason, string>> = {
@@ -484,5 +491,18 @@ export function useGame(eco: EconomyApi): GameApi {
     },
     gameStars,
     starNotice,
+    purchaseTarget() {
+      const g = gameRef.current
+      if (g.mode !== 'eglence' || g.gameOver || !g.jokers || !trackedRef.current) return undefined
+      return gameIdRef.current
+    },
+    grantPurchased(gameId, kind) {
+      const g = gameRef.current
+      if (gameId !== gameIdRef.current || g.mode !== 'eglence' || g.gameOver || !g.jokers) return false
+      // Oyun başı envanteri de 1 artar: "satın alınmış joker kullanıldı mı" (rekor kategorisi) doğru kalır.
+      inventoryAtStartRef.current = grantJokers(inventoryAtStartRef.current, { [kind]: 1 })
+      setGame({ ...g, jokers: { ...g.jokers, inventory: grantJokers(g.jokers.inventory, { [kind]: 1 }) } })
+      return true
+    },
   }
 }

@@ -69,15 +69,20 @@ export function shopBlockedReason(status: EconomyStatus, persistent: boolean): s
   return null
 }
 
-export const FREE_RIGHTS_NOTE = `Her Eğlence oyununda ücretsiz: Çekiç ${DEFAULT_FREE_JOKERS.cekic}, Yenile ${DEFAULT_FREE_JOKERS.yenile}, Döndür ${DEFAULT_FREE_JOKERS.dondur}. Satın aldıkların ücretsizler bitince kullanılır ve bir sonraki Eğlence oyununda hazır olur.`
+export const FREE_RIGHTS_NOTE = `Her Eğlence oyununda ücretsiz: Çekiç ${DEFAULT_FREE_JOKERS.cekic}, Yenile ${DEFAULT_FREE_JOKERS.yenile}, Döndür ${DEFAULT_FREE_JOKERS.dondur}. Satın aldıkların ücretsizler bitince kullanılır. Eğlence oyunu sürerken aldığın joker hemen oyuna eklenir; Klasik'te aldıkların sonraki Eğlence oyununda hazır olur.`
 
 /** Başarılı satın alma bildirimi: jokerin ne zaman kullanılabileceğini de söyler. */
+export const NOW_TEXT = 'Hemen kullanabilirsin.'
 export const NEXT_GAME_TEXT = 'Bir sonraki Eğlence oyununda kullanabilirsin.'
 
 /** Satın alma sonucu kısa bildirimi. */
-export function purchaseMessage(kind: JokerKind, result: { ok: true } | { ok: false; reason: StoreFailure }): string {
+export function purchaseMessage(
+  kind: JokerKind,
+  result: { ok: true; intoGame?: boolean } | { ok: false; reason: StoreFailure },
+): string {
   const name = JOKER_NAMES[kind]
-  if (result.ok) return `${name} alındı! ${NEXT_GAME_TEXT}`
+  // Eğlence oyunu sürüyorsa joker oyuna hemen eklenir; Klasik'te (ya da oyun yokken) sonraki Eğlence oyununu bekler.
+  if (result.ok) return `${name} alındı! ${result.intoGame ? NOW_TEXT : NEXT_GAME_TEXT}`
   switch (result.reason) {
     case 'insufficientStars':
       return 'Yeterli yıldızın yok.'

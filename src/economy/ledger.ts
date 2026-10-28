@@ -320,3 +320,20 @@ export function purchase(state: EconomyState, kind: JokerKind, requestId: string
     },
   }
 }
+
+/**
+ * Aşama 7.2: Eğlence oyunu sürerken alınan joker o oyunda hemen kullanılabilir. Satın almayla AYNI yazmada
+ * (bkz. storage purchase) etkin oyunun "oyuna getirilen satın alınmış haklar" sayısı 1 artırılır; arayüz de
+ * oyunun cüzdanına 1 ekler. Kullanım hesabı (oyun başı − cüzdan) böylece değişmez: bedel yalnızca satın
+ * almada düşer, joker kullanılınca envanter bir kez azalır. Klasik ya da başka oyun etkin ise hiçbir şey yapmaz
+ * (joker kalıcı envanterde bir sonraki Eğlence oyununu bekler).
+ */
+export function bringPurchasedIntoGame(state: EconomyState, gameId: string, kind: JokerKind): { state: EconomyState; brought: boolean } {
+  const active = state.active
+  if (!active || active.id !== gameId || active.mode !== 'eglence' || !JOKER_KINDS.includes(kind)) return { state, brought: false }
+  if (active.inventoryAtStart[kind] >= MAX_INVENTORY_PER_KIND) return { state, brought: false }
+  return {
+    brought: true,
+    state: { ...state, active: { ...active, inventoryAtStart: { ...active.inventoryAtStart, [kind]: active.inventoryAtStart[kind] + 1 } } },
+  }
+}

@@ -5,6 +5,7 @@ import {
   HISTORY_LIMIT,
   MAX_INVENTORY_PER_KIND,
   awardMove,
+  bringPurchasedIntoGame,
   finishGame,
   initialEconomy,
   purchase,
@@ -1096,5 +1097,218 @@ describe('K7 · eşzamanlı sahiplik alma', () => {
     expect(s.stars).toBe(70)
     expect(s.inventory.yenile).toBe(0)
     expect(b.purchase('yenile', 'y').ok).toBe(true)
+  })
+})
+
+describe('oyun ortasında satın alma: joker mevcut Eğlence oyununda hemen kullanılır (Aşama 7.2)', () => {
+  /** Ücretsiz Çekiç'i biten bir Eğlence oyunu (tahtada dolu hücre var). */
+  function midGame(seed = 5) {
+    let g = newGame(seed, DEFAULT_CONFIG, { mode: 'eglence' })
+    while (g.board.filter((c) => c !== 0).length < 3) {
+      const r = play(g, greedyBot(g)!)
+      if (!r.ok) throw new Error(r.reason)
+      g = r.state
+    }
+    const r = applyJoker(g, { type: 'cekic', cell: g.board.findIndex((c) => c !== 0) })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.jokers!.free.cekic).toBe(0)
+    return r.state
+  }
+  /** Arayüzün yaptığı: cüzdana 1 ekle. */
+  const grant = (g: GameState, kind: 'cekic' | 'yenile' | 'dondur'): GameState => ({
+    ...g,
+    jokers: { ...g.jokers!, inventory: { ...g.jokers!.inventory, [kind]: g.jokers!.inventory[kind] + 1 } },
+  })
+
+  it('defter: satın alma + oyuna getirme; kullanınca envanter bir kez düşer, yıldız bir kez kesilir', () => {
+    let e = ok(startGame(rich(100), 'g', 'eglence'))
+    let g = midGame()
+    e = ok(syncUsage(e, 'g', g.jokers))
+    e = ok(purchase(e, 'cekic', 'p1'))
+    const b = bringPurchasedIntoGame(e, 'g', 'cekic')
+    expect(b.brought).toBe(true)
+    e = b.state
+    g = grant(g, 'cekic')
+    expect(e.stars).toBe(75)
+    expect(e.inventory.cekic).toBe(1)
+    // Aynı cüzdan bildirilirse hiçbir şey düşmez.
+    e = ok(syncUsage(e, 'g', g.jokers))
+    expect(e.inventory.cekic).toBe(1)
+    const r = applyJoker(g, { type: 'cekic', cell: g.board.findIndex((c) => c !== 0) })
+    expect(r.ok && r.events.some((x) => x.type === 'jokerUsed' && x.source === 'inventory')).toBe(true)
+    if (!r.ok) return
+    e = ok(syncUsage(e, 'g', r.state.jokers))
+    e = ok(syncUsage(e, 'g', r.state.jokers))
+    expect(e.inventory.cekic).toBe(0)
+    expect(e.stars).toBe(75)
+    e = ok(finishGame(e, 'g', r.state.score, r.state.jokers))
+    expect(e.history[0]!.usedPurchased).toBe(true)
+    expect(e.history[0]!.usage.purchased.cekic).toBe(1)
+  })
+
+  it('Klasik, başka oyun ya da oyun yokken joker oyuna getirilmez (kalıcı envanterde bekler)', () => {
+    const k = ok(startGame(rich(50), 'k', 'klasik'))
+    expect(bringPurchasedIntoGame(k, 'k', 'cekic').brought).toBe(false)
+    const f = ok(startGame(rich(50), 'f', 'eglence'))
+    expect(bringPurchasedIntoGame(f, 'baska', 'cekic').brought).toBe(false)
+    expect(bringPurchasedIntoGame(rich(50), 'f', 'cekic').brought).toBe(false)
+  })
+
+  it('depo: satın alma ve oyuna getirme tek yazma; çift dokunuş tek joker; yenilemeden sonra envanter doğru', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(60)) })
+    const store = owned(st)
+    store.startGame('g', 'eglence')
+    const before = st.writes
+    const r1 = store.purchase('dondur', 'tap-1', 'g')
+    expect(r1.ok && r1.intoGame).toBe(true)
+    expect(st.writes - before).toBe(1)
+    const r2 = store.purchase('dondur', 'tap-1', 'g')
+    expect(r2.ok).toBe(false)
+    const saved = parseEconomy(st.data.get(ECONOMY_KEY)!).state
+    expect(saved.stars).toBe(40)
+    expect(saved.inventory.dondur).toBe(1)
+    expect(saved.active!.inventoryAtStart.dondur).toBe(1)
+    // Sayfa yenilendi (oyun devam kaydı yok): yeni oyun envanterin tamamını getirir, joker kaybolmaz ya da çoğalmaz.
+    const after = reload(store, st)
+    after.startGame('g2', 'eglence', after.load().state.inventory)
+    const s2 = after.load().state
+    expect(s2.inventory.dondur).toBe(1)
+    expect(s2.active!.inventoryAtStart.dondur).toBe(1)
+    expect(s2.stars).toBe(40)
+  })
+
+  it('depo: Klasik oyunda alınan joker oyuna getirilmez; kayıt yazılamazsa ne yıldız ne joker değişir', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(60)) })
+    const store = owned(st)
+    store.startGame('k', 'klasik')
+    const r = store.purchase('cekic', 'p', 'k')
+    expect(r.ok && r.intoGame).toBe(false)
+    expect(store.load().state.inventory.cekic).toBe(1)
+
+    const st2 = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(60)) })
+    owned(st2).startGame('g', 'eglence')
+    const failing = { getItem: st2.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
+    const broken = tab(failing)
+    broken.claim(true)
+    const f = broken.purchase('cekic', 'p', 'g')
+    expect(f.ok).toBe(false)
+    const kept = parseEconomy(st2.data.get(ECONOMY_KEY)!).state
+    expect(kept.stars).toBe(60)
+    expect(kept.inventory.cekic).toBe(0)
+    expect(kept.active!.inventoryAtStart.cekic).toBe(0)
+  })
+
+  it('iki sekme: sahip olmayan sekme satın alamaz ve oyuna getiremez; devralan sekmenin oyunu etkilenmez', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(100)) })
+    const a = owned(st)
+    a.startGame('ga', 'eglence')
+    const b = tab(st)
+    const r = b.purchase('cekic', 'x', 'ga')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('otherTab')
+    expect(b.claim(true).ok).toBe(true)
+    b.startGame('gb', 'eglence')
+    // B satın alır ve kendi oyununa getirir; A'nın oyunu (artık etkin değil) hiçbir şey almaz.
+    const rb = b.purchase('cekic', 'y', 'gb')
+    expect(rb.ok && rb.intoGame).toBe(true)
+    const ra = a.purchase('cekic', 'z', 'ga')
+    expect(ra.ok).toBe(false)
+    const s = b.load().state
+    expect(s.inventory.cekic).toBe(1)
+    expect(s.stars).toBe(75)
+    expect(s.active!.id).toBe('gb')
+  })
+
+  it('oyuna getirilen satın alınmış joker: sahiplik kaybolursa ya da kayıt yazılamazsa kullanılamaz, hiçbir şey değişmez', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(100)) })
+    // Aynı sekme kimliğiyle iki görünüm: biri normal, biri yazamayan (kota dolu).
+    const a = createEconomyStore(st, { tabId: 'tab-quota', now: () => clock.t })
+    expect(a.claim().ok).toBe(true)
+    a.startGame('ga', 'eglence')
+    let g = newGame(5, DEFAULT_CONFIG, { mode: 'eglence' })
+    while (g.board.filter((c) => c !== 0).length < 2) {
+      const r = play(g, greedyBot(g)!)
+      if (!r.ok) throw new Error(r.reason)
+      g = r.state
+    }
+    const hit = (x: GameState) => ({ type: 'cekic' as const, cell: x.board.findIndex((c) => c !== 0) })
+    // Ücretsiz Çekiç harcanır, sonra oyun ortasında Çekiç alınır.
+    const free = a.useJoker('ga', g, hit(g))
+    expect(free.ok).toBe(true)
+    if (!free.ok) return
+    g = free.game
+    expect(a.purchase('cekic', 'p', 'ga').ok).toBe(true)
+    g = grant(g, 'cekic')
+    // Başka sekme devralır: bu sekme satın alınmış Çekiç'i kullanamaz.
+    const b = tab(st)
+    expect(b.claim(true).ok).toBe(true)
+    const lost = a.useJoker('ga', g, hit(g))
+    expect(lost.ok).toBe(false)
+    if (!lost.ok) expect(lost.reason).toBe('otherTab')
+    let saved = parseEconomy(st.data.get(ECONOMY_KEY)!).state
+    expect(saved.inventory.cekic).toBe(1)
+    expect(saved.stars).toBe(75)
+    // Sahiplik geri alınır ama kayıt yazılamaz: yine kullanılamaz, envanter ve yıldız aynı.
+    expect(a.claim(true).ok).toBe(true)
+    const failing = { getItem: st.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
+    const broken = createEconomyStore(failing, { tabId: 'tab-quota', now: () => clock.t })
+    expect(broken.ownership()).toBe('mine')
+    const f = broken.useJoker('ga', g, hit(g))
+    expect(f.ok).toBe(false)
+    if (!f.ok) expect(f.reason).toBe('storageError')
+    saved = parseEconomy(st.data.get(ECONOMY_KEY)!).state
+    expect(saved.inventory.cekic).toBe(1)
+    expect(saved.stars).toBe(75)
+    // Kayıt düzelince tek kullanım, ikinci kesinti yok.
+    const okUse = a.useJoker('ga', g, hit(g))
+    expect(okUse.ok).toBe(true)
+    saved = parseEconomy(st.data.get(ECONOMY_KEY)!).state
+    expect(saved.inventory.cekic).toBe(0)
+    expect(saved.stars).toBe(75)
+  })
+
+  it('özellik: oyun ortasında rastgele alım ve kullanım; envanter = alınan − kullanılan, yıldız = başlangıç − bedel', () => {
+    const rng = createRng(77)
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(5_000)) })
+    const store = owned(st)
+    store.startGame('g', 'eglence')
+    let g = newGame(17, DEFAULT_CONFIG, { mode: 'eglence' })
+    let bought = 0
+    let used = 0
+    let spent = 0
+    for (let i = 0; i < 300 && !g.gameOver; i++) {
+      const roll = rng.nextInt(4)
+      if (roll === 0) {
+        const kind = (['cekic', 'yenile', 'dondur'] as const)[rng.nextInt(3)]!
+        const r = store.purchase(kind, `p${i}`, 'g')
+        if (r.ok) {
+          bought++
+          spent += JOKER_PRICES[kind]
+          expect(r.intoGame).toBe(true)
+          g = grant(g, kind)
+        }
+      } else if (roll === 1 && g.board.some((c) => c !== 0)) {
+        const r = store.useJoker('g', g, { type: 'cekic', cell: g.board.findIndex((c) => c !== 0) })
+        if (r.ok) {
+          if (r.events.some((x) => x.type === 'jokerUsed' && x.source === 'inventory')) used++
+          g = r.game
+        }
+      } else {
+        const mv = greedyBot(g)
+        if (!mv) break
+        const r = play(g, mv)
+        if (!r.ok) throw new Error(r.reason)
+        g = r.state
+        store.recordMove('g', g, r.events)
+      }
+      const s = store.load().state
+      const inv = s.inventory.cekic + s.inventory.yenile + s.inventory.dondur
+      const wallet = g.jokers!.inventory.cekic + g.jokers!.inventory.yenile + g.jokers!.inventory.dondur
+      expect(inv).toBe(bought - used)
+      expect(wallet).toBe(inv)
+      expect(s.totals.spent).toBe(spent)
+    }
+    expect(bought).toBeGreaterThan(0)
+    expect(used).toBeGreaterThan(0)
   })
 })

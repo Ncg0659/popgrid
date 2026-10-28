@@ -109,12 +109,16 @@ export default function App() {
   /** Mağazada tek dokunuşla satın alma. Yalnızca kalıcı kayıt başarılıysa "alındı" denir. */
   const buy = (kind: JokerKind) => {
     const id = purchaseGuard.current.request(performance.now())
-    if (!id) return { ok: false, text: 'Bir an bekle…' }
-    const r = eco.store.purchase(kind, id)
+    // Koruma süresindeki ikinci dokunuş sessizce yok sayılır: başarı bildirimi ekranda kalır.
+    if (!id) return null
+    // Eğlence oyunu sürüyorsa joker aynı kayıtta bu oyuna da getirilir ve hemen kullanılabilir.
+    const target = g.purchaseTarget()
+    const r = eco.store.purchase(kind, id, target)
     const success = r.ok && r.persisted
     purchaseGuard.current.settle(performance.now(), success)
     eco.apply(r)
-    return { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true } : { ok: false, reason: r.reason }) }
+    const intoGame = success && r.ok && r.intoGame === true && target !== undefined && g.grantPurchased(target, kind)
+    return { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true, intoGame } : { ok: false, reason: r.reason }) }
   }
 
   const banner = economyBanner(eco.status, eco.persistent)
