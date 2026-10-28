@@ -6,7 +6,8 @@ import { Tutorial } from './help/Tutorial'
 import { jokerIntroStore } from './storage/jokerIntro'
 import { tutorialStore } from './storage/tutorial'
 import { isSoundEnabled, playPlace, setSoundEnabled } from './audio/sound'
-import { useSoundCues } from './audio/useSoundCues'
+import { purchaseCue } from './audio/soundCue'
+import { playCue, useSoundCues } from './audio/useSoundCues'
 import { FxCanvas } from './fx/FxCanvas'
 import { useReducedMotion } from './fx/useReducedMotion'
 import { useDrag } from './input/useDrag'
@@ -49,6 +50,12 @@ export default function App() {
     return 'none'
   })
   const [soundOn, setSoundOn] = useState(isSoundEnabled)
+
+  // Aşama 7.3c: mağaza kapanınca, oyuna eklenen jokerlerin hak sayısı bir kez zıplar (panel açıkken görünmezdi).
+  const flushJokerBumps = g.flushJokerBumps
+  useEffect(() => {
+    if (overlay !== 'shop') flushJokerBumps()
+  }, [overlay, flushJokerBumps])
 
   // Hamle ve joker sesleri (eşleme src/audio/soundCue.ts'te).
   const jokerFx = g.jokerFx
@@ -105,12 +112,18 @@ export default function App() {
     if (!id) return null
     // Eğlence oyunu sürüyorsa joker aynı kayıtta bu oyuna da getirilir ve hemen kullanılabilir.
     const target = g.purchaseTarget()
+    const starsBefore = eco.store.load().state.stars
     const r = eco.store.purchase(kind, id, target)
     const success = r.ok && r.persisted
     purchaseGuard.current.settle(performance.now(), success)
     eco.apply(r)
     const intoGame = success && r.ok && r.intoGame === true && target !== undefined && g.grantPurchased(target, kind)
-    return { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true, intoGame } : { ok: false, reason: r.reason }) }
+    const result = { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true, intoGame } : { ok: false, reason: r.reason }) }
+    // Aşama 7.3c: geri bildirim (bakiye sayımı, mercan renk, ses) yalnızca kalıcı kaydı yapılan alımda.
+    if (success) g.pulseStars('spend', starsBefore - r.state.stars)
+    const cue = purchaseCue(result)
+    if (cue) playCue(cue)
+    return result
   }
 
   const banner = economyBanner(eco.status, eco.persistent)
@@ -197,6 +210,7 @@ export default function App() {
               onRefresh={g.refresh}
               onDisarm={g.disarm}
               trailing={starButton}
+              bump={g.jokerBump}
             />
             {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
             <p className="hint sr-only" aria-live="polite">
@@ -272,6 +286,8 @@ export default function App() {
         onTakeOver={eco.takeOver}
         onClose={() => setOverlay('none')}
         returnFocus={shopButton}
+        pulse={g.starPulse}
+        reducedMotion={reducedMotion}
       />
     )}
     {overlay === 'jokerIntro' && (

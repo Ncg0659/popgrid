@@ -13,6 +13,8 @@ interface Props {
   onDisarm(): void
   /** Çubuğun son hücresi (Aşama 7.2: yıldız düğmesi). Joker seçiliyken gizlenir. */
   trailing?: ReactNode
+  /** Mağazadan oyuna eklenen jokerlerin hak sayısı bir kez zıplar (Aşama 7.3c; mağaza kapanınca). */
+  bump?: { readonly id: number; readonly kinds: readonly JokerKind[] } | null
 }
 
 const INSTRUCTION: Record<'cekic' | 'dondur', string> = {
@@ -28,7 +30,7 @@ export const FREE_ROTATION_TEXT = 'Ücretsiz: aynı parçaya dokun.'
  * Hedef bekleyen joker seçilince çubuk aynı yükseklikte bir yönerge + Vazgeç/Tamam satırına dönüşür.
  * Düğmeler yalnızca onClick kullanır: iOS'ta bir dokunuş tek click üretir (pointerup + click çift sayılmaz).
  */
-export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm, trailing }: Props) {
+export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm, trailing, bump = null }: Props) {
   if (armed) {
     const current = buttons.find((b) => b.kind === armed)
     const count = current?.count ?? 0
@@ -72,7 +74,11 @@ export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm, 
         >
           <span className="jk-chip" data-kind={b.kind} aria-hidden="true">
             <JokerIcon kind={b.kind} />
-            <span className="jk-count" data-zero={b.count === 0 || undefined}>
+            <span
+              key={bump?.kinds.includes(b.kind) ? `b${bump.id}` : 'n'}
+              className={bump?.kinds.includes(b.kind) ? 'jk-count fx-jk-bump' : 'jk-count'}
+              data-zero={b.count === 0 || undefined}
+            >
               {b.freeRotation && b.count === 0 ? '↻' : b.count}
             </span>
           </span>

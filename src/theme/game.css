@@ -2501,6 +2501,92 @@ button {
   }
 }
 
+/* =====================================================================
+ * Aşama 7.3c — satın alma geri bildirimi. Yalnızca transform, opacity ve renk değişir; dokunma engellenmez.
+ * ===================================================================== */
+.shop-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ✓'den sonra fiyat 150 ms'de geri gelir. */
+.shop-price-back {
+  animation: shop-fade-in 150ms ease-out both;
+}
+
+/* ✓ onayı: 150 ms giriş (%90'dan %100 boyuta), 700 ms sabit. */
+.shop-check {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  animation: shop-check-in 150ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.shop-check svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes shop-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* "Sende" sayısı ve oyuna eklenen jokerin hak sayısı: tek yumuşak zıplama (260 ms). */
+.shop-owned-n {
+  display: inline-block;
+}
+
+.fx-soft-bump,
+.jk-count.fx-jk-bump {
+  animation: soft-bump 260ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes soft-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Harcama: bakiye sayım boyunca ve 300 ms daha mercan; dönüş 250 ms. */
+.star-count,
+.shop-balance strong {
+  transition: color 250ms ease;
+}
+
+.star-count[data-spend],
+.shop-balance strong[data-spend] {
+  color: var(--c2);
+}
+
 /* Satın alınmış jokerli Eğlence oyunu: rekor ayrı kategori (mercan yıldız). */
 .best[data-mode='eglence'][data-bought] svg {
   fill: var(--c2);

@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 import type { Effect } from '../fx/effects'
 import type { JokerFx } from '../fx/jokerEffects'
-import { playClear, playJoker, playPlace } from './sound'
+import { playClear, playJoker, playPlace, playPurchase } from './sound'
 import { jokerCue, moveCue, type SoundCue } from './soundCue'
 
 /** Bir sesi mevcut tek ses motoruyla çalar (ses kapalıysa ya da motor hazır değilse hiçbir şey olmaz). */
 export function playCue(cue: SoundCue): void {
   if (cue.kind === 'clear') playClear(cue.lines, cue.combo)
   else if (cue.kind === 'joker') playJoker(cue.joker)
+  else if (cue.kind === 'purchase') playPurchase()
   else playPlace()
 }
 

@@ -142,6 +142,10 @@ export interface GameApi {
   readonly starPulse: StarPulse | null
   /** Harcamayı yıldız düğmesine bildirir (mağaza; Aşama 7.3c). */
   pulseStars(kind: StarPulse['kind'], amount: number): void
+  /** Mağazadan oyuna eklenen jokerler: hak sayıları mağaza kapanınca bir kez zıplar (Aşama 7.3c). */
+  readonly jokerBump: { readonly id: number; readonly kinds: readonly JokerKind[] } | null
+  /** Mağaza kapandı: bekleyen zıplamaları başlatır. */
+  flushJokerBumps(): void
   /**
    * Mağazadan alınan joker bu oyuna hemen eklenebilir mi? Evetse defter kimliği (satın alma bununla yapılır),
    * değilse undefined (Klasik, biten oyun, deftere kayıtsız oyun).
@@ -190,6 +194,8 @@ export function useGame(eco: EconomyApi): GameApi {
   const [gameStars, setGameStars] = useState<GameStars | null>(null)
   const [starNotice, setStarNotice] = useState<JokerNotice | null>(null)
   const [starPulse, setStarPulse] = useState<StarPulse | null>(null)
+  const [jokerBump, setJokerBump] = useState<{ id: number; kinds: readonly JokerKind[] } | null>(null)
+  const pendingBumps = useRef<JokerKind[]>([])
   const pulseId = useRef(0)
   const pulseStars = useCallback((kind: StarPulse['kind'], amount: number) => {
     if (amount <= 0) return
@@ -507,6 +513,14 @@ export function useGame(eco: EconomyApi): GameApi {
     starNotice,
     starPulse,
     pulseStars,
+    jokerBump,
+    flushJokerBumps() {
+      if (pendingBumps.current.length === 0) return
+      const kinds = [...new Set(pendingBumps.current)]
+      pendingBumps.current = []
+      pulseId.current += 1
+      setJokerBump({ id: pulseId.current, kinds })
+    },
     purchaseTarget() {
       const g = gameRef.current
       if (g.mode !== 'eglence' || g.gameOver || !g.jokers || !trackedRef.current) return undefined
@@ -518,6 +532,7 @@ export function useGame(eco: EconomyApi): GameApi {
       // Oyun başı envanteri de 1 artar: "satın alınmış joker kullanıldı mı" (rekor kategorisi) doğru kalır.
       inventoryAtStartRef.current = grantJokers(inventoryAtStartRef.current, { [kind]: 1 })
       setGame({ ...g, jokers: { ...g.jokers, inventory: grantJokers(g.jokers.inventory, { [kind]: 1 }) } })
+      pendingBumps.current.push(kind)
       return true
     },
   }

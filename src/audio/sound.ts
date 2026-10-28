@@ -69,6 +69,8 @@ export interface SoundSystem {
   playClear(lines: number, combo: number): void
   /** Joker sesleri (yalnızca Eğlence Modu, joker gerçekten uygulandığında). */
   playJoker(kind: JokerSound): void
+  /** Satın alma sesi (Aşama 7.3c): yalnızca kalıcı kaydı başarılı olan alımda çağrılır. */
+  playPurchase(): void
   status(): SoundStatus
   /** Belge ve pencere olaylarını dinlemeye başlar (bir kez). */
   install(): void
@@ -287,6 +289,12 @@ export function createSoundSystem(env: SoundEnv): SoundSystem {
       if (!ac || !master) return
       jokerSound(ac, master, kind)
     },
+    playPurchase() {
+      // Aynı motor ve aynı "hazır mı" kontrolü: ses kapalıysa motor kurulmaz, iPhone sessiz moduna uyulur.
+      const ac = ready()
+      if (!ac || !master) return
+      purchaseSound(ac, master)
+    },
     status: () => ({
       supported: !!env.AudioContextCtor,
       enabled,
@@ -392,6 +400,15 @@ function jokerSound(ac: AudioContext, out: AudioNode, kind: JokerSound): void {
   tone(ac, out, { freq: 780, at: 0.035, dur: 0.07, type: 'triangle', gain: 0.045, slide: 1.2 })
 }
 
+/** Satın alma sesi seviyesi (Aşama 7.3c): Yenile/Döndür seslerine yakın, yumuşak. */
+export const PURCHASE_GAIN = 0.11
+
+/** Satın alma: iki notalı, yükselen yumuşak "çin" (Do6 → Sol6), toplam ~160 ms. Yalnızca osilatör. */
+function purchaseSound(ac: AudioContext, out: AudioNode): void {
+  tone(ac, out, { freq: 1046.5, dur: 0.09, type: 'triangle', gain: PURCHASE_GAIN })
+  tone(ac, out, { freq: 1567.98, at: 0.06, dur: 0.1, type: 'triangle', gain: PURCHASE_GAIN })
+}
+
 // ---------- Uygulamanın kullandığı tek ses sistemi ----------
 const system: SoundSystem | null =
   typeof window === 'undefined' || typeof document === 'undefined'
@@ -418,4 +435,5 @@ export const unlockAudio = (): void => system?.unlock('react')
 export const playPlace = (): void => system?.playPlace()
 export const playClear = (lines: number, combo: number): void => system?.playClear(lines, combo)
 export const playJoker = (kind: JokerSound): void => system?.playJoker(kind)
+export const playPurchase = (): void => system?.playPurchase()
 export const soundStatus = (): SoundStatus | null => system?.status() ?? null

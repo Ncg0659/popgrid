@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jokerCue, moveCue } from '../src/audio/soundCue'
+import { jokerCue, moveCue, purchaseCue } from '../src/audio/soundCue'
 import { cellCenter } from '../src/fx/boardGeometry'
 import { describeEffect, type Effect } from '../src/fx/effects'
 import { SHOP_TOAST_MS, STAR_BANNER_MS, STAR_CHIP_HOLD_MS, STAR_CHIP_IN_MS, STAR_CHIP_MS, STAR_CHIP_OUT_MS, STAR_COUNT_MS, STAR_NOTICE_MS } from '../src/fx/fxTiming'
@@ -153,5 +153,13 @@ describe('7.3b kazanım çipi zamanı', () => {
     expect(chipTimeLeft(p('spend', 25), 1000, STAR_CHIP_MS)).toBe(0)
     expect(chipTimeLeft(p('gain', 0), 1000, STAR_CHIP_MS)).toBe(0)
     expect(chipTimeLeft(null, 1000, STAR_CHIP_MS)).toBe(0)
+  })
+})
+
+describe('7.3c satın alma sesi eşlemesi', () => {
+  it('yalnızca başarılı (kalıcı) alımda ses; başarısız ya da yok sayılan dokunuşta sessiz', () => {
+    expect(purchaseCue({ ok: true })).toEqual({ kind: 'purchase' })
+    expect(purchaseCue({ ok: false })).toBe(null)
+    expect(purchaseCue(null)).toBe(null)
   })
 })

@@ -426,3 +426,42 @@ describe('ses sistemi: joker sesleri (Aşama 6.3)', () => {
     expect(FakeCtx.instances).toHaveLength(2)
   })
 })
+
+describe('ses sistemi: satın alma sesi (Aşama 7.3c)', () => {
+  it('açılışta (hareket yokken) motor kurmaz ve çalmaz', () => {
+    const { sound } = setup()
+    sound.playPurchase()
+    expect(FakeCtx.instances).toHaveLength(0)
+  })
+
+  it('aynı motoru kullanır, iki ton çalar; diğer seslerin ton sayıları değişmez', async () => {
+    const { sound, tap, ctxAt } = setup()
+    await tap()
+    sound.playPlace()
+    expect(ctxAt(0).tones).toBe(2)
+    sound.playPurchase()
+    expect(ctxAt(0).tones).toBe(4)
+    sound.playJoker('cekic')
+    expect(ctxAt(0).tones).toBe(8)
+    expect(FakeCtx.instances).toHaveLength(1)
+  })
+
+  it('ses kapalıyken çalmaz ve motor kurmaz', async () => {
+    const { sound, tap } = setup({ stored: 'off' })
+    await tap()
+    sound.playPurchase()
+    expect(FakeCtx.instances).toHaveLength(0)
+  })
+
+  it('arka plandayken çalmaz; dönüşte aynı motorla çalar', async () => {
+    const { sound, tap, background, foreground, ctxAt } = setup()
+    await tap()
+    await background()
+    sound.playPurchase()
+    expect(ctxAt(0).tones).toBe(0)
+    await foreground()
+    sound.playPurchase()
+    expect(ctxAt(0).tones).toBe(2)
+    expect(FakeCtx.instances).toHaveLength(1)
+  })
+})

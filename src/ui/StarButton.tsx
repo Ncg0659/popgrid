@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { STAR_CHIP_MS, STAR_COUNT_MS } from '../fx/fxTiming'
+import { useEffect, useState } from 'react'
+import { STAR_CHIP_MS } from '../fx/fxTiming'
 import { fmtStars, fmtStarsShort } from './economyUi'
 import { StarIcon } from './StarIcon'
-import { chipTimeLeft, tweenStars, type StarPulse } from './starFeedback'
+import { chipTimeLeft, type StarPulse } from './starFeedback'
+import { useStarCount } from './useStarCount'
 
 interface Props {
   stars: number
@@ -23,37 +24,8 @@ interface Props {
  * Ekran okuyucu etiketi her an gerçek bakiyeyi söyler; animasyon yalnızca gösterimdir.
  */
 export function StarButton({ stars, warn, onOpenShop, pulse = null, reducedMotion = false }: Props) {
-  const [shown, setShown] = useState(stars)
-  const shownRef = useRef(stars)
-  const lastPulse = useRef<number | null>(pulse?.id ?? null)
+  const { shown, spending } = useStarCount(stars, pulse, reducedMotion)
   const [chip, setChip] = useState<StarPulse | null>(null)
-
-  useEffect(() => {
-    const show = (n: number) => {
-      shownRef.current = n
-      setShown(n)
-    }
-    // Yeni olay: sayım tamamlanana kadar "yeni" sayılır (StrictMode'un çift çalıştırmasında da sayım başlar).
-    const fresh = pulse !== null && pulse.id !== lastPulse.current
-    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
-    if (!fresh || reducedMotion || hidden) {
-      if (pulse) lastPulse.current = pulse.id
-      show(stars)
-      return
-    }
-    // Önceki sayım (varsa) bu efektin temizliğinde durdu; yeni sayım ekranda görünen değerden başlar.
-    const from = shownRef.current
-    const start = performance.now()
-    let raf = 0
-    const tick = (now: number) => {
-      const v = tweenStars(from, stars, now - start, false, STAR_COUNT_MS)
-      show(v)
-      if (v !== stars) raf = requestAnimationFrame(tick)
-      else lastPulse.current = pulse.id
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [stars, pulse, reducedMotion])
 
   // Kazanım çipi: yeni kazanımda öncekinin yerini alır, 1,3 sn sonra kaldırılır.
   useEffect(() => {
@@ -68,7 +40,7 @@ export function StarButton({ stars, warn, onOpenShop, pulse = null, reducedMotio
   return (
     <button type="button" className="star-btn" data-warn={warn || undefined} onClick={onOpenShop} aria-label={label} title="Yıldız Mağazası">
       <StarIcon />
-      <span className="star-count" aria-hidden="true">
+      <span className="star-count" data-spend={spending || undefined} aria-hidden="true">
         {fmtStarsShort(shown)}
       </span>
       {chip && (
