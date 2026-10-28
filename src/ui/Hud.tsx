@@ -16,10 +16,26 @@ interface Props {
   onHelp(): void
   /** Rekor bu modun rekorudur; Eğlence'de farklı simge ve etiket. */
   mode?: GameMode
+  /** Rekor kategorisinin adı (ekran okuyucu ve ipucu): "Rekor", "Eğlence rekoru", "Satın alınmış jokerli rekor". */
+  recordLabel?: string
+  /** Satın alınmış joker kullanılan Eğlence oyunu: rekor ayrı kategori (mercan yıldız). */
+  boughtCategory?: boolean
 }
 
 /** Ses, logo, yeniden başlat; altında rekor ve büyük skor. */
-export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSound, onRestart, onHelp, mode = 'klasik' }: Props) {
+export function Hud({
+  score,
+  best,
+  canRestartFreely,
+  effect,
+  soundOn,
+  onToggleSound,
+  onRestart,
+  onHelp,
+  mode = 'klasik',
+  recordLabel,
+  boughtCategory = false,
+}: Props) {
   const base = import.meta.env.BASE_URL
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<number | undefined>(undefined)
@@ -91,7 +107,9 @@ export function Hud({ score, best, canRestartFreely, effect, soundOn, onToggleSo
       <div
         className="pill best"
         data-mode={mode}
-        aria-label={mode === 'eglence' ? `Eğlence rekoru ${fmt(best)}` : `Rekor ${fmt(best)}`}
+        data-bought={boughtCategory || undefined}
+        title={recordLabel}
+        aria-label={`${recordLabel ?? (mode === 'eglence' ? 'Eğlence rekoru' : 'Rekor')} ${fmt(best)}`}
       >
         {mode === 'eglence' ? (
           <svg viewBox="0 0 24 24" aria-hidden="true">

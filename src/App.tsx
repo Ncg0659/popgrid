@@ -15,13 +15,23 @@ import { Hud } from './ui/Hud'
 import { JokerBar } from './ui/JokerBar'
 import { jokerButtons, rotatableSlots } from './ui/jokerUi'
 import { ModeSheet } from './ui/ModeSheet'
+import { economyBanner, purchaseMessage, createPurchaseGuard } from './ui/economyUi'
+import { ShopSheet } from './ui/ShopSheet'
+import { StarButton } from './ui/StarButton'
+import { StarToast } from './ui/StarToast'
+import { useEconomy } from './ui/useEconomy'
+import { randomId } from './storage/economy'
+import type { JokerKind } from './engine/types'
 import { PieceView } from './ui/PieceView'
 import { StuckNotice } from './ui/StuckNotice'
 import { Tray } from './ui/Tray'
 import { useGame } from './ui/useGame'
 
 export default function App() {
-  const g = useGame()
+  // Ekonomi (yıldız, mağaza, sekme sahipliği) oyundan ÖNCE kurulur: ilk oyun sahipliğe göre başlar.
+  const eco = useEconomy()
+  const g = useGame(eco)
+  const purchaseGuard = useRef(createPurchaseGuard(() => randomId('p')))
   const lastPointer = useRef<string>('touch')
   const boardRef = useRef<HTMLDivElement>(null)
   const { game, selected, preview, effect } = g
@@ -29,7 +39,8 @@ export default function App() {
   // Rehber katmanı: oyunun üstünde açılır; oyun durumu (tahta, skor, rekor, parçalar) hiç değişmez.
   const helpButton = () => document.querySelector<HTMLElement>('.help-btn')
   const restartButton = () => document.querySelector<HTMLElement>('.restart')
-  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro'
+  const shopButton = () => document.querySelector<HTMLElement>('.star-btn')
+  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro' | 'shop'
   // Açılışta: yeni oyuncuya temel eğitim; Eğlence ile açılan ve tanıtımı görmemiş oyuncuya joker tanıtımı.
   const [overlay, setOverlay] = useState<Overlay>(() => {
     if (tutorialStore.shouldAutoShow(g.best)) return 'tutorial'
@@ -95,6 +106,24 @@ export default function App() {
   else if (preview && !preview.ok) hint = 'Bu parça buraya sığmıyor.'
   else if (preview?.ok) hint = lastPointer.current === 'mouse' ? 'Tıkla ve yerleştir.' : 'Yerleştirmek için parçaya tekrar dokun.'
 
+  /** Mağazada tek dokunuşla satın alma. Yalnızca kalıcı kayıt başarılıysa "alındı" denir. */
+  const buy = (kind: JokerKind) => {
+    const id = purchaseGuard.current.request(performance.now())
+    // Koruma süresindeki ikinci dokunuş sessizce yok sayılır: başarı bildirimi ekranda kalır.
+    if (!id) return null
+    // Eğlence oyunu sürüyorsa joker aynı kayıtta bu oyuna da getirilir ve hemen kullanılabilir.
+    const target = g.purchaseTarget()
+    const r = eco.store.purchase(kind, id, target)
+    const success = r.ok && r.persisted
+    purchaseGuard.current.settle(performance.now(), success)
+    eco.apply(r)
+    const intoGame = success && r.ok && r.intoGame === true && target !== undefined && g.grantPurchased(target, kind)
+    return { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true, intoGame } : { ok: false, reason: r.reason }) }
+  }
+
+  const banner = economyBanner(eco.status, eco.persistent)
+  const starButton = <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} />
+
   const startMode = (mode: 'klasik' | 'eglence') => {
     g.startGame(mode)
     // Eğlence Modu'na ilk giriş: tek kartlık joker tanıtımı (yalnızca bir kez kendiliğinden). Klasik etkilenmez.
@@ -117,6 +146,8 @@ export default function App() {
           score={game.score}
           best={g.best}
           mode={game.mode}
+          recordLabel={g.record.label}
+          boughtCategory={g.record.category === 'eglenceSatin'}
           canRestartFreely={game.gameOver || game.moveCount === 0}
           effect={effect}
           soundOn={soundOn}
@@ -160,26 +191,33 @@ export default function App() {
         jokerFx={jokerFx}
         reducedMotion={reducedMotion}
       />
-      {fun ? (
-        <>
-          <JokerBar
-            buttons={jokerButtons(game)}
-            armed={armed}
-            message={g.notice?.text ?? null}
-            onArm={g.arm}
-            onRefresh={g.refresh}
-            onDisarm={g.disarm}
-          />
-          {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
-          <p className="hint sr-only" aria-live="polite">
-            {armed ? '' : (g.notice?.text ?? hint)}
-          </p>
-        </>
-      ) : (
-        <p className="hint" aria-live="polite">
-          {hint}
-        </p>
-      )}
+      <div className="bottom-zone">
+        <StarToast notice={g.starNotice} banner={banner} />
+        {fun ? (
+          <>
+            <JokerBar
+              buttons={jokerButtons(game)}
+              armed={armed}
+              message={g.notice?.text ?? null}
+              onArm={g.arm}
+              onRefresh={g.refresh}
+              onDisarm={g.disarm}
+              trailing={starButton}
+            />
+            {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
+            <p className="hint sr-only" aria-live="polite">
+              {armed ? '' : (g.notice?.text ?? hint)}
+            </p>
+          </>
+        ) : (
+          <div className="hint-row">
+            <p className="hint" aria-live="polite">
+              {hint}
+            </p>
+            {starButton}
+          </div>
+        )}
+      </div>
       <FxCanvas effect={effect} boardRef={boardRef} reducedMotion={reducedMotion} jokerFx={jokerFx} />
       {drag && (
         <div ref={floatRef} className="drag-float" aria-hidden="true">
@@ -192,7 +230,10 @@ export default function App() {
           score={game.score}
           best={g.best}
           mode={game.mode}
-          isNewBest={game.score > g.bestAtStart && game.score > 0}
+          stars={g.gameStars}
+          isNewBest={g.record.isNew}
+          recordLine={g.record.line}
+          boughtCategory={g.record.category === 'eglenceSatin'}
           onRestart={g.restart}
           onChooseMode={() => setOverlay('mode')}
         />
@@ -212,6 +253,8 @@ export default function App() {
       <ModeSheet
         current={game.mode}
         bests={g.bests}
+        stars={eco.state.stars}
+        boughtBest={g.boughtBest}
         onStart={startMode}
         onClose={() => setOverlay('none')}
         returnFocus={restartButton}
@@ -223,6 +266,18 @@ export default function App() {
         onReplayTutorial={() => setOverlay('tutorial')}
         onReplayJokerIntro={() => setOverlay('jokerIntro')}
         returnFocus={helpButton}
+      />
+    )}
+    {overlay === 'shop' && (
+      <ShopSheet
+        state={eco.state}
+        status={eco.status}
+        persistent={eco.persistent}
+        onBuy={buy}
+        canTakeOver={banner?.canTakeOver ?? false}
+        onTakeOver={eco.takeOver}
+        onClose={() => setOverlay('none')}
+        returnFocus={shopButton}
       />
     )}
     {overlay === 'jokerIntro' && (

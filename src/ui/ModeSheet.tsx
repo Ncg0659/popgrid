@@ -2,13 +2,19 @@ import { useRef } from 'react'
 import { DEFAULT_FREE_JOKERS } from '../engine'
 import type { GameMode } from '../engine/types'
 import { useDialog } from '../help/useDialog'
+import { fmtStars } from './economyUi'
 import { JokerIcon } from './JokerIcon'
+import { StarIcon } from './StarIcon'
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
 interface Props {
   current: GameMode
   bests: Readonly<Record<GameMode, number>>
+  /** Yıldız bakiyesi (açılış/yeni oyun ekranında gösterilir). */
+  stars: number
+  /** Satın alınmış jokerli Eğlence rekoru (0 ise gösterilmez). */
+  boughtBest?: number
   onStart(mode: GameMode): void
   onClose(): void
   returnFocus?: () => HTMLElement | null
@@ -18,7 +24,7 @@ interface Props {
  * Yeni oyun: mod seçimi. Mod yalnızca burada, oyun başlarken seçilir; oyun ortasında değişmez.
  * Kartlardan birine dokunmak o modda yeni oyunu hemen başlatır.
  */
-export function ModeSheet({ current, bests, onStart, onClose, returnFocus }: Props) {
+export function ModeSheet({ current, bests, stars, boughtBest = 0, onStart, onClose, returnFocus }: Props) {
   const currentRef = useRef<HTMLButtonElement>(null)
   const dialog = useDialog<HTMLDivElement>(onClose, currentRef, returnFocus)
   const j = DEFAULT_FREE_JOKERS
@@ -32,6 +38,12 @@ export function ModeSheet({ current, bests, onStart, onClose, returnFocus }: Pro
           </button>
         </header>
         <p className="mode-lead">Bir mod seç. Mod oyun boyunca değişmez.</p>
+        <p className="mode-stars">
+          <StarIcon />
+          <span>
+            <strong>{fmtStars(stars)}</strong> yıldız · iki modda da kazanılır
+          </span>
+        </p>
         <div className="mode-cards">
           <button
             ref={current === 'klasik' ? currentRef : undefined}
@@ -78,6 +90,7 @@ export function ModeSheet({ current, bests, onStart, onClose, returnFocus }: Pro
                 Jokerlerle: Çekiç {j.cekic}, Yenile {j.yenile}, Döndür {j.dondur}.
               </span>
               <span className="mode-best">Eğlence rekoru: {fmt(bests.eglence)}</span>
+              {boughtBest > 0 && <span className="mode-best">Satın alınmış jokerli: {fmt(boughtBest)}</span>}
             </span>
           </button>
         </div>
