@@ -114,7 +114,9 @@ export default function App() {
   }
 
   const banner = economyBanner(eco.status, eco.persistent)
-  const starButton = <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} />
+  const starButton = (
+    <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} pulse={g.starPulse} reducedMotion={reducedMotion} />
+  )
 
   const startMode = (mode: 'klasik' | 'eglence') => {
     g.startGame(mode)

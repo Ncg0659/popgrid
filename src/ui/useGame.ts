@@ -17,6 +17,7 @@ import {
   type RecordView,
 } from './economyUi'
 import type { ArmedJoker } from './jokerUi'
+import { starsGained, type StarPulse } from './starFeedback'
 import type { EconomyApi } from './useEconomy'
 import { originFor, previewMove, type Origin, type Preview } from './placement'
 
@@ -137,6 +138,10 @@ export interface GameApi {
   readonly gameStars: GameStars | null
   /** Kısa yıldız bilgisi (ör. 300 sınırına ulaşıldı). id her mesajda artar. */
   readonly starNotice: JokerNotice | null
+  /** Bu sekmedeki son yıldız kazanımı / harcaması (yıldız düğmesi geri bildirimi, Aşama 7.3b). */
+  readonly starPulse: StarPulse | null
+  /** Harcamayı yıldız düğmesine bildirir (mağaza; Aşama 7.3c). */
+  pulseStars(kind: StarPulse['kind'], amount: number): void
   /**
    * Mağazadan alınan joker bu oyuna hemen eklenebilir mi? Evetse defter kimliği (satın alma bununla yapılır),
    * değilse undefined (Klasik, biten oyun, deftere kayıtsız oyun).
@@ -184,6 +189,13 @@ export function useGame(eco: EconomyApi): GameApi {
   const trackedRef = useRef(false)
   const [gameStars, setGameStars] = useState<GameStars | null>(null)
   const [starNotice, setStarNotice] = useState<JokerNotice | null>(null)
+  const [starPulse, setStarPulse] = useState<StarPulse | null>(null)
+  const pulseId = useRef(0)
+  const pulseStars = useCallback((kind: StarPulse['kind'], amount: number) => {
+    if (amount <= 0) return
+    pulseId.current += 1
+    setStarPulse({ id: pulseId.current, kind, amount, at: performance.now() })
+  }, [])
   const ecoRef = useRef(eco)
   ecoRef.current = eco
 
@@ -239,10 +251,12 @@ export function useGame(eco: EconomyApi): GameApi {
       const before = e.store.load().state
       const r = e.store.recordMove(id, next, events)
       e.apply(r)
+      // Yalnızca bu hamlede gerçekten kazanılan yıldız (300 sınırında kalan pay); bakiyeyle aynı kaynak.
+      if (r.ok) pulseStars('gain', starsGained(before, r.state))
       if (r.ok && reachedCapNow(before, r.state, id)) tellStars(CAP_TEXT)
       if (next.gameOver) finishEconomy(next)
     },
-    [finishEconomy, tellStars],
+    [finishEconomy, tellStars, pulseStars],
   )
 
   const mode = game.mode
@@ -491,6 +505,8 @@ export function useGame(eco: EconomyApi): GameApi {
     },
     gameStars,
     starNotice,
+    starPulse,
+    pulseStars,
     purchaseTarget() {
       const g = gameRef.current
       if (g.mode !== 'eglence' || g.gameOver || !g.jokers || !trackedRef.current) return undefined

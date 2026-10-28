@@ -2097,19 +2097,73 @@ button {
   line-height: 1;
 }
 
-.fx-star {
-  animation: star-bump 260ms ease-out;
+.star-count {
+  /* Eş genişlikli rakamlar: sayı değişirken düğme titremez. */
+  font-variant-numeric: tabular-nums;
 }
 
-@keyframes star-bump {
+/* Aşama 7.3b: kazanım çipi. 150 ms belirme + 6 px yükselme, 900 ms sabit, 250 ms solma (toplam 1,3 sn).
+   Yalnızca transform ve opacity değişir; dokunmayı engellemez. */
+.star-gain {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  z-index: 2;
+  padding: 1px 7px;
+  border: 2px solid var(--sticker);
+  border-radius: 999px;
+  background: var(--butter);
+  box-shadow: 0 2px 6px rgba(90, 60, 170, 0.18);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: star-gain 1300ms linear both;
+}
+
+@keyframes star-gain {
   0% {
-    transform: scale(1);
+    opacity: 0;
+    transform: translate(-50%, 6px);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
   }
-  45% {
-    transform: scale(1.3);
+  11.5% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  80.8% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    animation-timing-function: ease-in;
   }
   100% {
-    transform: scale(1);
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Hareketi azalt: çip yerinde belirir ve solar (bilgi kaybolmaz, hareket yok). */
+@keyframes star-gain-fade {
+  0% {
+    opacity: 0;
+  }
+  11.5% {
+    opacity: 1;
+  }
+  80.8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star-gain {
+    animation: star-gain-fade 1300ms linear both !important;
   }
 }
 
