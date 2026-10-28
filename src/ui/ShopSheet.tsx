@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JokerKind } from '../engine/types'
 import type { EconomyState } from '../economy/ledger'
+import { SHOP_TOAST_MS } from '../fx/fxTiming'
 import { useDialog } from '../help/useDialog'
 import { FREE_RIGHTS_NOTE, fmtStars, shopBlockedReason, shopItems, type EconomyStatus } from './economyUi'
 import { JokerIcon } from './JokerIcon'
@@ -33,7 +34,7 @@ export function ShopSheet({ state, status, persistent, onBuy, canTakeOver, onTak
 
   useEffect(() => {
     if (!toast) return
-    const t = window.setTimeout(() => setToast(null), 2200)
+    const t = window.setTimeout(() => setToast(null), SHOP_TOAST_MS)
     return () => window.clearTimeout(t)
   }, [toast])
 

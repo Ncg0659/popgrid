@@ -2439,14 +2439,7 @@ button {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fx-star,
-  .sheet.shop,
-  .star-toast,
-  .shop-toast[data-shown] {
-    animation: none !important;
-  }
-}
+/* Hareketi azalt: yıldız, mağaza ve bildirim animasyonlarını genel "Azaltılmış hareket" bloğu kapatır. */
 
 @media (max-width: 360px) {
   .sheet.shop h2 {

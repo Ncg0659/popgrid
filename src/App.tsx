@@ -5,7 +5,8 @@ import { JokerIntro } from './help/JokerIntro'
 import { Tutorial } from './help/Tutorial'
 import { jokerIntroStore } from './storage/jokerIntro'
 import { tutorialStore } from './storage/tutorial'
-import { isSoundEnabled, playClear, playJoker, playPlace, setSoundEnabled } from './audio/sound'
+import { isSoundEnabled, playPlace, setSoundEnabled } from './audio/sound'
+import { useSoundCues } from './audio/useSoundCues'
 import { FxCanvas } from './fx/FxCanvas'
 import { useReducedMotion } from './fx/useReducedMotion'
 import { useDrag } from './input/useDrag'
@@ -49,18 +50,9 @@ export default function App() {
   })
   const [soundOn, setSoundOn] = useState(isSoundEnabled)
 
-  // Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi.
-  useEffect(() => {
-    if (!effect) return
-    if (effect.lines > 0) playClear(effect.lines, effect.combo)
-    else playPlace()
-  }, [effect])
-
-  // Joker sesi: yalnızca joker gerçekten uygulandığında (jokerFx yalnızca başarılı sonuçta oluşur).
+  // Hamle ve joker sesleri (eşleme src/audio/soundCue.ts'te).
   const jokerFx = g.jokerFx
-  useEffect(() => {
-    if (jokerFx) playJoker(jokerFx.kind)
-  }, [jokerFx])
+  useSoundCues(effect, jokerFx)
 
   const toggleSound = () => {
     const next = !soundOn
