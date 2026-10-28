@@ -13,8 +13,8 @@ export default tseslint.config(
     rules: { ...reactHooks.configs.recommended.rules },
   },
   {
-    // Oyun motoru saf kalmalı: tohumsuz rastgelelik ve tarayıcı/React yasak (RULES.md 7, 9).
-    files: ['src/engine/**/*.ts'],
+    // Oyun motoru ve ekonomi kuralları saf kalmalı: tohumsuz rastgelelik ve tarayıcı/React yasak (RULES.md 7, 9).
+    files: ['src/engine/**/*.ts', 'src/economy/**/*.ts'],
     languageOptions: { globals: {} },
     rules: {
       'no-restricted-properties': [

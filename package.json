@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "vite-node scripts/simulate.ts",
-    "sim:jokers": "vite-node scripts/simulate-jokers.ts"
+    "sim:jokers": "vite-node scripts/simulate-jokers.ts",
+    "sim:economy": "vite-node scripts/simulate-economy.ts",
+    "sim:balance": "vite-node scripts/simulate-economy-balance.ts all"
   },
   "dependencies": {
     "@fontsource-variable/baloo-2": "^5.0.0",

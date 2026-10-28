@@ -83,3 +83,21 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - Kayıt `popgrid:v1:joker-intro` (`src/storage/jokerIntro.ts`): yalnızca Eğlence Modu'na ilk girişte kendiliğinden açılır (mod seçimi ya da Eğlence ile açılış). Klasik oyuncular hiç görmez. Depolama kapalıysa aynı oturumda tekrar açılmaz.
 - Açılış sırası: yeni oyuncuda önce 4 kartlık temel eğitim, Eğlence ile açılmışsa ardından joker tanıtımı.
 - Yardımda "Joker tanıtımını aç" düğmesi kartı tekrar açar. Kart oyunun üstünde açılır; oyun durumu değişmez, kapanınca odak "?" düğmesine döner.
+
+## Yıldız ekonomisi motoru (Aşama 7.1)
+- **Oyun motoru değişmedi.** Ekonomi motorun olaylarını (`cleared`) ve son skoru okur; `src/engine/` dosyalarına, üreticiye ve golden parmak izine dokunulmadı.
+- `src/economy/` saf TypeScript'tir (ESLint ve `purity.test.ts` motorla aynı yasakları uygular):
+  - `rules.ts`: hat ödülü (1 → 2, 2 → 5, 3+ → 10 yıldız; aynı hamlede birikmez), oyun sonu `Math.floor(skor / 100) * 5`, fiyatlar (Çekiç 25, Yenile 40, Döndür 20), **Eğlence'de oyun başı tavan 300** (`FUN_STAR_CAP`, Klasik'te yok). Onaylı değerler.
+  - `ledger.ts`: `EconomyState` (bakiye, satın alınmış envanter, etkin oyun defteri, son 20 oyun özeti, Eğlence'nin ayrımlı rekorları, toplamlar, sahiplik) ve değişmez işlemler `startGame`, `awardMove`, `syncUsage`, `finishGame`, `purchase`. Tavan hamle ve oyun sonu ödülüne kalan pay kadar uygulanır; kazanılan geri alınmaz.
+  - `ownership.ts`: tek yazıcı kuralı (kira 15 sn; sahip her işlemde ve düzenli aralıkla yeniler; bırakma ve zorla alma).
+  - `schema.ts`: sürümlü kayıt (şema 2), tam doğrulama, şema 1 → 2 geçişi, Aşama 6 envanterinden geçiş.
+- Kalıcı kayıt: `src/storage/economy.ts`, tek anahtar `popgrid:v1:economy`, işlem başına tek `setItem` (atomik). Her işlem kaydı yeniden okur ve sahipliği denetler.
+  - **Yalnızca sahip sekme yazar** (K1, K2): öbür sekme okur, işlemleri `otherTab` ile reddedilir; arayüz açıklama gösterir (7.2).
+  - `useJoker`: jokeri uygular ve satın alınmış hakkın düşülmesini aynı senkron çağrıda yazar; yazılamıyorsa joker uygulanmaz (K5).
+  - `recordMove`: hamle numarasını motorun durumundan alır (K3). `newGameId`: rastgele oyun kimliği, tohumdan türetilmez (K4).
+  - Bozuk kayıt `popgrid:v1:economy:corrupt`'a yedeklenir; daha yeni sürümün kaydı okunmaz ve üzerine yazılmaz; depolama yoksa oturumda bellekte devam edilir.
+- `src/storage/economyLock.ts`: sahiplik alma Web Locks varsa kilit içinde yapılır (K7); yoksa kilitsiz (yarış penceresi yalnızca sahiplik almada).
+- **Güvenlik sınırı:** localStorage oyuncunun tarayıcısındadır ve elle değiştirilebilir. Bu kayıt hileye karşı koruma sağlamaz; yalnızca dürüst oyunda hata ve çift ödülü önler. Gerçek koruma sunucu gerektirir (0 TL kuralı nedeniyle yok).
+- Oyun devam kaydı yoktur: sayfa kapanırsa o ana kadarki hat yıldızları kalır, oyun sonu ödülü verilmez; yeni oyun eskisini "bırakılmış" sayar.
+- **Henüz arayüze bağlı değil** (Aşama 7.2): canlı oyun yıldız kazandırmaz, mağaza yok. `useGame` hâlâ `popgrid:v1:inventory`'yi kullanır; ekonomi kaydı yokken o anahtar yalnızca okunarak taşınır.
+- Simülasyon: `npm run sim:economy` → `docs/sim-economy.md`; dengeleme: `npm run sim:balance` → `docs/sim-economy-balance.md`; yorum ve kararlar: `docs/asama-7.1-ekonomi.md`, `docs/asama-7.1-dengeleme.md`.
