@@ -30,7 +30,7 @@
 | Ortalama · Klasik | 51,8 | 43 | 14 – 26 – 69 – 109 | 33,5 | 18,3 | 414 | 343 | 44 |
 | Ortalama · Eğlence | 125,9 | 117 | 51 – 79 – 163 – 210 | 80,0 | 46,0 | 976 | 902 | 91 |
 | Deneyimli · Klasik | 202,7 | 148 | 48 – 89 – 292 – 402 | 131,8 | 71,0 | 1.471 | 1.090 | 142 |
-| Deneyimli · Eğlence | 565,8 | 485 | 154 – 309 – 741 – 1.027 | 365,2 | 200,7 | 4.060 | 3.524 | 376 |
+| Deneyimli · Eğlence | 270,4 | 300 | 154 – 300 – 300 – 300 | 247,4 | 23,0 | 4.060 | 3.524 | 376 |
 
 Oyun başına hat temizleme sayısı (ortalama): 1 hat / 2 hat / 3+ hat.
 
@@ -52,7 +52,7 @@ Oyun başına hat temizleme sayısı (ortalama): 1 hat / 2 hat / 3+ hat.
 | Ortalama · Klasik | %0,2 | %3,2 | %19,6 | %36,6 | %28,8 | %11,4 | %0,2 | %0,0 |
 | Ortalama · Eğlence | %0,0 | %0,0 | %1,4 | %8,2 | %27,2 | %51,2 | %12,0 | %0,0 |
 | Deneyimli · Klasik | %0,0 | %0,0 | %1,0 | %11,0 | %18,0 | %31,0 | %34,0 | %5,0 |
-| Deneyimli · Eğlence | %0,0 | %0,0 | %0,0 | %0,0 | %3,0 | %12,0 | %36,0 | %49,0 |
+| Deneyimli · Eğlence | %0,0 | %0,0 | %0,0 | %0,0 | %3,0 | %12,0 | %85,0 | %0,0 |
 
 ## 3. Bir joker için gereken tahmini oyun sayısı
 
@@ -65,7 +65,7 @@ Fiyat ÷ oyun başına yıldız. Ortalamaya ve medyana göre ayrı verildi (dağ
 | Ortalama · Klasik | 0,5 / 0,6 | 0,8 / 0,9 | 0,4 / 0,5 |
 | Ortalama · Eğlence | 0,2 / 0,2 | 0,3 / 0,3 | 0,2 / 0,2 |
 | Deneyimli · Klasik | 0,1 / 0,2 | 0,2 / 0,3 | 0,1 / 0,1 |
-| Deneyimli · Eğlence | 0,0 / 0,1 | 0,1 / 0,1 | 0,0 / 0,0 |
+| Deneyimli · Eğlence | 0,1 / 0,1 | 0,1 / 0,1 | 0,1 / 0,1 |
 
 ## 4. Ücretsiz jokerlerin etkisi (Eğlence ÷ Klasik, aynı tohumlar)
 
@@ -73,7 +73,7 @@ Fiyat ÷ oyun başına yıldız. Ortalamaya ve medyana göre ayrı verildi (dağ
 |---|---|---|---|---|
 | Yeni başlayan | 4,0 → 24,2 | ×6,07 | ×3,16 | 3,5 |
 | Ortalama | 51,8 → 125,9 | ×2,43 | ×2,36 | 3,5 |
-| Deneyimli | 202,7 → 565,8 | ×2,79 | ×2,76 | 3,0 |
+| Deneyimli | 202,7 → 270,4 | ×1,33 | ×2,76 | 3,0 |
 
 ## 5. Satın alınmış jokerin Eğlence skoruna ve yıldıza etkisi
 
@@ -89,10 +89,10 @@ Aynı tohumlarla, ücretsiz 1/1/2 hakka EK olarak satın alınmış joker getiri
 | Ortalama | +1 Yenile | 40 | %100,0 | +173 | +194 | +22,3 | 0,56 |
 | Ortalama | +1 Döndür | 20 | %51,4 | +66 | +65 | +8,4 | 0,42 |
 | Ortalama | +1 / +1 / +1 | 85 | %100,0 | +441 | +458 | +54,8 | 0,64 |
-| Deneyimli | +1 Çekiç | 25 | %76,0 | +725 | +1.102 | +101,2 | 4,05 |
-| Deneyimli | +1 Yenile | 40 | %100,0 | +1.074 | +1.148 | +151,1 | 3,78 |
-| Deneyimli | +1 Döndür | 20 | %20,0 | +147 | +30 | +20,9 | 1,04 |
-| Deneyimli | +1 / +1 / +1 | 85 | %100,0 | +2.217 | +2.099 | +310,5 | 3,65 |
+| Deneyimli | +1 Çekiç | 25 | %76,0 | +725 | +1.102 | +7,7 | 0,31 |
+| Deneyimli | +1 Yenile | 40 | %100,0 | +1.074 | +1.148 | +10,9 | 0,27 |
+| Deneyimli | +1 Döndür | 20 | %20,0 | +147 | +30 | +0,0 | 0,00 |
+| Deneyimli | +1 / +1 / +1 | 85 | %100,0 | +2.217 | +2.099 | +12,3 | 0,14 |
 
 ## 6. Yıldız birikimi ve enflasyon (kariyer)
 
@@ -104,8 +104,8 @@ Aynı oyuncu art arda Eğlence oynar. **biriktir:** hiç satın almaz. **harca:*
 | Yeni başlayan · harca | 30,4 | 30,3 | 9 (9) | 41,6 / 43,7 / 12,2 | 1,0 | 264 | 30,9 → 29,9 |
 | Ortalama · biriktir | 118,2 | 0,0 | 11.818 (11.624) | 0,0 / 0,0 / 0,0 | 0,0 | 920 | 116,8 → 119,5 |
 | Ortalama · harca | 227,0 | 161,3 | 6.572 (6.470) | 194,6 / 199,5 / 164,3 | 5,5 | 1.850 | 222,2 → 231,8 |
-| Deneyimli · biriktir | 490,5 | 0,0 | 19.620 (19.620) | 0,0 / 0,0 / 0,0 | 0,0 | 3.513 | 515,6 → 465,4 |
-| Deneyimli · harca | 1.029,8 | 150,0 | 35.193 (35.193) | 76,0 / 80,0 / 45,0 | 4,9 | 7.351 | 1.093,7 → 966,0 |
+| Deneyimli · biriktir | 263,1 | 0,0 | 10.522 (10.522) | 0,0 / 0,0 / 0,0 | 0,0 | 3.513 | 273,6 → 252,6 |
+| Deneyimli · harca | 297,6 | 150,0 | 5.903 (5.903) | 76,0 / 80,0 / 45,0 | 4,9 | 7.351 | 295,2 → 300,0 |
 
 Ortalama bakiye eğrisi (her 10 oyunda bir):
 
@@ -113,10 +113,10 @@ Ortalama bakiye eğrisi (her 10 oyunda bir):
 - Yeni başlayan · harca: 10. oyun 9 · 20. oyun 7 · 30. oyun 9 · 40. oyun 8 · 50. oyun 6 · 60. oyun 5 · 70. oyun 8 · 80. oyun 6 · 90. oyun 7 · 100. oyun 9
 - Ortalama · biriktir: 10. oyun 1.165 · 20. oyun 2.378 · 30. oyun 3.535 · 40. oyun 4.675 · 50. oyun 5.842 · 60. oyun 7.101 · 70. oyun 8.315 · 80. oyun 9.473 · 90. oyun 10.607 · 100. oyun 11.818
 - Ortalama · harca: 10. oyun 472 · 20. oyun 1.126 · 30. oyun 1.758 · 40. oyun 2.349 · 50. oyun 3.054 · 60. oyun 3.778 · 70. oyun 4.485 · 80. oyun 5.205 · 90. oyun 5.948 · 100. oyun 6.572
-- Deneyimli · biriktir: 10. oyun 5.155 · 20. oyun 10.312 · 30. oyun 15.021 · 40. oyun 19.620
-- Deneyimli · harca: 10. oyun 9.217 · 20. oyun 18.819 · 30. oyun 27.274 · 40. oyun 35.193
+- Deneyimli · biriktir: 10. oyun 2.733 · 20. oyun 5.471 · 30. oyun 8.163 · 40. oyun 10.522
+- Deneyimli · harca: 10. oyun 1.388 · 20. oyun 2.848 · 30. oyun 4.378 · 40. oyun 5.903
 
 Yorum ve öneriler: docs/asama-7.1-ekonomi.md.
 
-Hamle sınırına ulaşan temel ölçüm oyunu: 0. Süre: Yeni başlayan 7 sn, Ortalama 445 sn, Deneyimli 1726 sn.
+Hamle sınırına ulaşan temel ölçüm oyunu: 0. Süre: Yeni başlayan 7 sn, Ortalama 445 sn, Deneyimli 1836 sn.
 

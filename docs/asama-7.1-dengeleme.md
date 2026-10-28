@@ -143,3 +143,81 @@ Testler `tests/economy.test.ts` → "risk senaryoları" (13 test). Mevcut davran
 - Bütün testler yerelde (Node test çalıştırıcısı, vitest uyumlu katman): geçti.
 - CI: lint, TypeScript, testler ve build GitHub Actions'ta çalışır.
 - Oyun motoru, `src/economy/`, `src/storage/`, arayüz: **değişmedi** (bu ek yalnızca `scripts/`, `tests/`, `docs/` ve `package.json`'a dokundu).
+
+---
+
+## Onaylanan karar ve uygulama (Aşama 7.1 son)
+Karar: **yalnızca Eğlence Modu'nda oyun başına en fazla 300 yıldız** (hat + oyun sonu toplamı). Klasik'te tavan yok.
+- Ödüller (2 / 5 / 10, oyun sonu ⌊skor/100⌋×5) ve fiyatlar (25 / 40 / 20) değişmedi.
+- Satın alınmış joker kullanana ek kesinti ya da dondurma yok.
+- Tavan dolunca oyun, skor ve jokerler normal sürüyor; kazanılmış yıldız geri alınmıyor.
+
+Uygulama:
+- `src/economy/rules.ts` → `FUN_STAR_CAP = 300`, `starCapFor(mode)`.
+- `src/economy/ledger.ts` → hamle ve oyun sonu ödülü kalan pay kadar (`starsLeftThisGame`).
+
+### Simülasyonla tutarlılık
+`npm run sim:economy`, artık tavanlı gerçek defterle çalıştırıldı (`docs/sim-economy.md`). Aynı tohumlarda prototip kuralla karşılaştırıldı: Eğlence için `C300`, Klasik için `A`.
+
+| Profil | Klasik ort. / medyan — defter · prototip | Eğlence ort. / medyan — defter · prototip |
+|---|---|---|
+| Yeni başlayan (1.000 oyun) | 3,985 / 2 · 3,985 / 2 | 24,182 / 25 · 24,182 / 25 |
+| Ortalama (500) | 51,750 / 43 · 51,750 / 43 | 125,944 / 117 · 125,944 / 117 |
+| Deneyimli (100) | 202,740 / 148 · 202,740 / 148 | 270,390 / 300 · 270,390 / 300 |
+
+Birebir aynı. Ayrıca `tests/economy.test.ts` her derlemede bunu denetliyor ("gerçek oyunlar: defter = simülasyonun onaylı kuralı", 12 tohum × 2 mod, en az bir oyun tavana ulaşıyor).
+
+Tavanlı defterle geri ödeme:
+- deneyimli 0,00–0,31 (önceden 1,20–4,45),
+- ortalama 0,42–0,79,
+- yeni başlayan 0,12–0,28.
+
+Deneyimli için 50 tohumlu bu ölçüm, dengeleme raporundaki 100 tohumlu C300 değerleriyle (0,26–0,47 ± 0,24) güven aralığı içinde uyumlu.
+
+Deneyimli oyuncu her oyun joker alırsa:
+- 40 oyunda bakiye 5.903 (tavansız 7.1 ölçümünde ~35.000),
+- skor yine ikiye katlanıyor (3.513 → 7.351).
+
+## K1–K7: çözümler
+**Seçilen model: tek yazıcı (tek sahip sekme).** Çoklu etkin oyun + rezervasyon yerine seçildi.
+
+Çoklu oyun + rezervasyon modelinin sorunları:
+- Kapanmış bir sekmenin oyunu ile açık ama boşta bekleyen sekme ayırt edilemiyor.
+- Bu yüzden ayrılmış jokerlerin ne zaman geri verileceği bir zamanlayıcıya bağlanmak zorunda.
+- Geri verilen jokeri hâlâ açık olan eski sekme kullanırsa çoğalma riski doğuyor.
+
+Tek yazıcı modelinde aynı anda yalnızca bir sekme ekonomiyi değiştirebildiği için rezervasyona gerek kalmıyor.
+
+| # | Çözüm | Test |
+|---|---|---|
+| K1 | Kayıtta `owner` (sekme kimliği + 15 sn kira). Yalnızca sahip yazar; öbür sekme okur, işlemleri `otherTab` ile reddedilir. Arayüz (7.2) açıklama gösterir. Sahip kapanırken bırakır (hemen devir). Kira dolarsa (çökme, arka planda dondurma) devralınır. Kullanıcı isterse zorla alınır. Saat geri alınırsa kira boş sayılır. | ikinci sekme yazamaz; birinci sekmenin oyunu ikinci açıldı diye yıldız kaybetmez; bırakma, kira, zorla alma, saat geri alma |
+| K2 | Satın alınmış joker yalnızca sahip sekmede ve yalnızca etkin oyunda harcanır. Sahipliğini kaybeden sekmenin isteğinde motor sonucu bile verilmez. | aynı joker iki sekmede harcanamaz; 400 adımlık rastgele iki sekme akışında her adımda `envanter = satın alınan − uygulanan kullanım` |
+| K3 | `recordMove`: hamle numarası motorun durumundan alınır. Ham `awardMove` için doğrulama testleri eklendi. | sıra, aynı/eski numara, geçersiz numaralar, atlama, gerçek oyunda her hamle tam bir kez |
+| K4 | `newGameId()` kripto rastgele (`g-<uuid>`), tohumdan türetilmez. Bitmiş kimlik reddi ve çift başlatmanın etkisizliği korundu. | 5.000 benzersiz kimlik; aynı tohumla iki oyun, ikincisi de baştan ödül alır |
+| K5 | `useJoker`: joker uygulanır ve satın alınmış hakkın düşülmesi **aynı senkron çağrıda** yazılır. Yazılamazsa (kota, başka sahip, yanlış oyun) motor sonucu verilmez, envanter aynen kalır. Bırakılan oyunda kullanılmamış jokerler zaten envanterde. | yenilemeden sonra düşük kalır; yazma hatasında uygulanmaz; yanlış oyun; geçersiz joker; bırakılan oyunda kaybolmaz |
+| K6 | Değişmedi: tek yazma; aynı istek kimliği yenilemeden sonra da reddedilir; kota hatasında alım yalnızca bellekte, yenilemede bakiye ve envanter birlikte geri döner. | üç test korundu |
+| K7 | Tek yazıcı nedeniyle olağan işlemlerde eşzamanlı yazan yok. Tek yarış penceresi sahiplik alma: Web Locks varsa `claimWithLock` bunu tarayıcı kilidiyle sıraya koyar. | kilitli sıra; kilitsiz çalışma; kilitsiz en kötü durum (sahiplik birinde kalır, öteki yazamaz, veri kaybolmaz) |
+
+### Web Locks (K7)
+- **Destek** (caniuse): Chrome 69+, Edge 79+, Firefox 96+, Safari ve iOS Safari 15.4+, Samsung Internet 10.1+.
+- **Koşul:** Yalnızca güvenli bağlamda (HTTPS) çalışır. GitHub Pages HTTPS olduğu için sorun yok.
+- **Desteklenmeyen tarayıcıda:** Sahiplik kilitsiz alınır. İki sekme aynı milisaniyede almaya çalışırsa son yazan sahip olur; öteki bir sonraki işleminde `otherTab` alır. Henüz yazmadığı için veri kaybı yok (testli).
+- **Kilitlenmeyen işlemler:** Ödül, satın alma ve joker kilide alınmadı. Kilit eşzamansızdır (async) ve jokerin uygulanmasıyla kaydın yazılmasını ayırırdı; bu da K5'i bozardı.
+
+### Şema
+- Kayıt şeması 1 → 2: `owner` alanı eklendi.
+- Şema 1 kayıtları bütün alanlarıyla okunuyor; ilk yazmada şema 2 oluyor (testli).
+- Rekor, mod, eğitim, ses ve joker tanıtımı anahtarlarına dokunulmuyor (testli).
+
+## Çözülemeyen / açık riskler
+1. **Hile:** localStorage sunucu seviyesinde hile koruması sağlamaz (kabul edildi).
+2. **Arka plan:** iOS'ta sahip sekme 15 sn'den uzun arka planda kalırsa başka bir sekme devralabilir. Eski sekme dönünce o oyunda yıldız kazanamaz ve satın alınmış joker harcayamaz; oyun normal sürer. Arayüz bunu açıklamalı (7.2).
+3. **Kilitsiz tarayıcılar:** Web Locks olmayan tarayıcıda, kirası dolmuş sahibin bir işlemi ile başka sekmenin sahiplik alması işlemciler arasında aynı mikrosaniyeye denk gelirse kuramsal bir ezme penceresi var. Olasılığı çok düşük.
+4. **Kalıcılık kaybı:** Kayıt yazılamıyorsa (kota) o oturumun yıldızları ve alımları yenilemede geri döner (tutarlı geri alma). Satın alınmış joker bu durumda kullanılamaz. Arayüz uyarı göstermeli (7.2).
+5. **K3 kalıntısı:** Ham `awardMove`'a yanlış ve çok büyük numara verilirse o oyunun hamle ödülleri kapanır. Arayüz yalnızca `recordMove` kullanmalı (7.2'de testle).
+6. **Arayüz bağlantısı yok:**
+   - `useGame` hâlâ eski `popgrid:v1:inventory` anahtarını kullanıyor.
+   - 7.2'de tek kaynağa (ekonomi kaydı) geçilmeli. Bugün kimse joker satın alamadığı için eski anahtar herkes için 0.
+   - Sahiplik alma, kira yenileme (~5 sn) ve sayfa kapanırken bırakma arayüzde yapılacak.
+7. **Cihazlar arası eşitleme yok:** Bakiye cihaza ve tarayıcıya bağlı.
+8. **Deneyimli örneklem sınırı:** Deneyimli botun örneklemi sınırlı; sonuçlar eğilimdir.

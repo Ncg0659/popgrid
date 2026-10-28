@@ -793,14 +793,14 @@
   },
   "eglence": {
    "games": 100,
-   "meanStars": 565.8,
-   "medianStars": 485,
+   "meanStars": 270.39,
+   "medianStars": 300,
    "p10": 154,
-   "p25": 309,
-   "p75": 741,
-   "p90": 1027,
-   "meanLineStars": 365.15,
-   "meanEndStars": 200.65,
+   "p25": 300,
+   "p75": 300,
+   "p90": 300,
+   "meanLineStars": 247.37,
+   "meanEndStars": 23.02,
    "meanScore": 4059.99,
    "medianScore": 3524,
    "meanMoves": 375.73,
@@ -819,8 +819,8 @@
     0,
     0.03,
     0.12,
-    0.36,
-    0.49
+    0.85,
+    0
    ],
    "hitCap": 0
   },
@@ -835,14 +835,14 @@
     "cost": 25,
     "summary": {
      "games": 50,
-     "meanStars": 746.08,
-     "medianStars": 702,
-     "p10": 311,
-     "p25": 451,
-     "p75": 891,
-     "p90": 1243,
-     "meanLineStars": 480.98,
-     "meanEndStars": 265.1,
+     "meanStars": 290.8,
+     "medianStars": 300,
+     "p10": 300,
+     "p25": 300,
+     "p75": 300,
+     "p90": 300,
+     "meanLineStars": 277.36,
+     "meanEndStars": 13.44,
      "meanScore": 5354.94,
      "medianScore": 4990,
      "meanMoves": 491.3,
@@ -861,12 +861,12 @@
       0,
       0.02,
       0.02,
-      0.28,
-      0.68
+      0.96,
+      0
      ],
      "hitCap": 0
     },
-    "deltaStars": 101.16000000000008,
+    "deltaStars": 7.720000000000027,
     "deltaScore": 724.6999999999998,
     "deltaMedianScore": 1102
    },
@@ -880,14 +880,14 @@
     "cost": 40,
     "summary": {
      "games": 50,
-     "meanStars": 796.02,
-     "medianStars": 711,
+     "meanStars": 293.94,
+     "medianStars": 300,
      "p10": 279,
-     "p25": 451,
-     "p75": 940,
-     "p90": 1497,
-     "meanLineStars": 513.12,
-     "meanEndStars": 282.9,
+     "p25": 300,
+     "p75": 300,
+     "p90": 300,
+     "meanLineStars": 274.74,
+     "meanEndStars": 19.2,
      "meanScore": 5704.04,
      "medianScore": 5036,
      "meanMoves": 524.5,
@@ -906,12 +906,12 @@
       0,
       0,
       0,
-      0.3,
-      0.7
+      1,
+      0
      ],
      "hitCap": 0
     },
-    "deltaStars": 151.10000000000002,
+    "deltaStars": 10.860000000000014,
     "deltaScore": 1073.8000000000002,
     "deltaMedianScore": 1148
    },
@@ -925,14 +925,14 @@
     "cost": 20,
     "summary": {
      "games": 50,
-     "meanStars": 665.78,
-     "medianStars": 558,
+     "meanStars": 283.08,
+     "medianStars": 300,
      "p10": 216,
-     "p25": 417,
-     "p75": 877,
-     "p90": 1147,
-     "meanLineStars": 429.18,
-     "meanEndStars": 236.6,
+     "p25": 300,
+     "p75": 300,
+     "p90": 300,
+     "meanLineStars": 264.78,
+     "meanEndStars": 18.3,
      "meanScore": 4777.16,
      "medianScore": 3918,
      "meanMoves": 439.92,
@@ -951,12 +951,12 @@
       0,
       0.02,
       0.06,
-      0.34,
-      0.58
+      0.92,
+      0
      ],
      "hitCap": 0
     },
-    "deltaStars": 20.860000000000014,
+    "deltaStars": 0,
     "deltaScore": 146.92000000000007,
     "deltaMedianScore": 30
    },
@@ -970,14 +970,14 @@
     "cost": 85,
     "summary": {
      "games": 50,
-     "meanStars": 955.46,
-     "medianStars": 838,
-     "p10": 328,
-     "p25": 645,
-     "p75": 1142,
-     "p90": 1725,
-     "meanLineStars": 615.96,
-     "meanEndStars": 339.5,
+     "meanStars": 295.4,
+     "medianStars": 300,
+     "p10": 300,
+     "p25": 300,
+     "p75": 300,
+     "p90": 300,
+     "meanLineStars": 284.12,
+     "meanEndStars": 11.28,
      "meanScore": 6847.32,
      "medianScore": 5987,
      "meanMoves": 627.04,
@@ -996,12 +996,12 @@
       0,
       0,
       0.02,
-      0.16,
-      0.82
+      0.98,
+      0
      ],
      "hitCap": 0
     },
-    "deltaStars": 310.5400000000001,
+    "deltaStars": 12.319999999999993,
     "deltaScore": 2217.08,
     "deltaMedianScore": 2099
    }
@@ -1014,24 +1014,24 @@
     "balanceCurve": [
      [
       10,
-      5155
+      2733
      ],
      [
       20,
-      10312
+      5471
      ],
      [
       30,
-      15021
+      8163
      ],
      [
       40,
-      19620
+      10522
      ]
     ],
-    "finalBalanceMean": 19620,
-    "finalBalanceMedian": 19620,
-    "earnedPerGame": 490.5,
+    "finalBalanceMean": 10522,
+    "finalBalanceMedian": 10522,
+    "earnedPerGame": 263.05,
     "spentPerGame": 0,
     "boughtPerCareer": {
      "cekic": 0,
@@ -1040,8 +1040,8 @@
     },
     "meanScore": 3512.925,
     "purchasedUsedPerGame": 0,
-    "firstHalfStars": 515.6,
-    "secondHalfStars": 465.4
+    "firstHalfStars": 273.55,
+    "secondHalfStars": 252.55
    },
    {
     "policy": "harca",
@@ -1050,24 +1050,24 @@
     "balanceCurve": [
      [
       10,
-      9217
+      1388
      ],
      [
       20,
-      18819
+      2848
      ],
      [
       30,
-      27274
+      4378
      ],
      [
       40,
-      35193
+      5903
      ]
     ],
-    "finalBalanceMean": 35193,
-    "finalBalanceMedian": 35193,
-    "earnedPerGame": 1029.825,
+    "finalBalanceMean": 5903,
+    "finalBalanceMedian": 5903,
+    "earnedPerGame": 297.575,
     "spentPerGame": 150,
     "boughtPerCareer": {
      "cekic": 76,
@@ -1076,10 +1076,10 @@
     },
     "meanScore": 7351.425,
     "purchasedUsedPerGame": 4.875,
-    "firstHalfStars": 1093.7,
-    "secondHalfStars": 965.95
+    "firstHalfStars": 295.15,
+    "secondHalfStars": 300
    }
   ],
-  "seconds": 1726
+  "seconds": 1836
  }
 ]
