@@ -26,7 +26,8 @@
   --font: 'Baloo 2 Variable', 'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif;
 
   /* Tahta ölçüleri: ekran genişliğine ve yüksekliğine sığar, kaydırma gerekmez. */
-  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 268px)));
+  /* Aşama 7.2: alttaki yıldız rafı için 54px (44px raf + 10px boşluk) ayrılır: 268px → 322px. */
+  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 322px)));
   --pad: calc(var(--board) * 0.032);
   --gap: calc(var(--board) * 0.009);
   --frame: calc(var(--board) * 0.02);
@@ -1302,10 +1303,10 @@ button {
 }
 
 /* Eğlence: joker çubuğu (52px) ipucu satırının (~21px) yerini alır. Tahta yalnızca ekran yüksekliği
- * yetmediğinde ve yalnızca bu fark kadar küçülür (268px → 299px ayrılır); genişliğe göre ölçülen
+ * yetmediğinde ve yalnızca bu fark kadar küçülür (322px → 353px ayrılır, yıldız rafı dahil); genişliğe göre ölçülen
  * ekranlarda (375px ve üstü telefonlar) tahta Klasik ile aynı boyuttadır. */
 .game[data-mode='eglence'] {
-  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 299px)));
+  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 353px)));
   --pad: calc(var(--board) * 0.032);
   --gap: calc(var(--board) * 0.009);
   --frame: calc(var(--board) * 0.02);
@@ -2004,5 +2005,402 @@ button {
   .ji-rights-line {
     margin-top: 8px;
     font-size: 14px;
+  }
+}
+
+/* ---------- Yıldız rafı ve mağaza (Aşama 7.2) ---------- */
+.star-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  fill: var(--c3);
+  stroke: #e3a400;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1.5px 0 rgba(170, 110, 0, 0.35));
+}
+
+.star-dock {
+  position: relative;
+  width: var(--board);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.star-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 6px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sticker);
+  box-shadow: 0 3px 0 var(--lilac);
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.star-dock[data-warn] .star-btn {
+  padding-right: 14px;
+}
+
+.star-btn:active {
+  transform: translateY(2px);
+}
+
+.star-count {
+  display: inline-block;
+  min-width: 1ch;
+}
+
+.star-shop {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--c1);
+  color: #fff;
+  font-size: 15px;
+  box-shadow: inset 0 -3px 0 rgba(0, 80, 100, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+.fx-star {
+  animation: star-bump 260ms ease-out;
+}
+
+@keyframes star-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.star-toast {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 7;
+  width: max-content;
+  max-width: var(--board);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: var(--sticker);
+  box-shadow: 0 3px 0 var(--lilac), 0 8px 18px rgba(90, 60, 170, 0.18);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: toast-in 200ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.eco-note {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eco-note p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink-soft);
+}
+
+.eco-takeover {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 15px;
+}
+
+/* Mağaza: ekranın altından açılan panel */
+.overlay.shop-overlay {
+  place-items: end center;
+  padding: max(12px, env(safe-area-inset-top)) 0 0;
+}
+
+.sheet.shop {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(88dvh, 660px);
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 env(safe-area-inset-bottom);
+  overflow: hidden;
+  border-bottom: 0;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -4px 0 var(--lilac), 0 -14px 30px rgba(90, 60, 170, 0.2);
+  animation: shop-up 220ms ease-out;
+}
+
+@keyframes shop-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.shop-grip {
+  width: 44px;
+  height: 5px;
+  margin: 8px auto 0;
+  border-radius: 999px;
+  background: var(--lilac);
+}
+
+.shop-head {
+  padding-top: 6px;
+}
+
+.shop-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 10px 14px 18px;
+}
+
+.shop-balance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.shop-balance .star-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.shop-balance strong {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.shop-blocked {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--sticker);
+  border: 2px solid var(--c2);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shop-item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 20px;
+  background: var(--sticker);
+  box-shadow: 0 4px 0 var(--dimple);
+}
+
+.shop-chip {
+  width: 48px;
+  height: 48px;
+}
+
+.shop-chip .jk-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.shop-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.shop-text strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.shop-owned {
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.shop-buy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 76px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--c3);
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow:
+    inset 0 -4px 0 rgba(150, 95, 0, 0.25),
+    inset 0 3px 0 rgba(255, 255, 255, 0.45),
+    0 3px 0 rgba(170, 110, 0, 0.35);
+}
+
+.shop-buy .star-icon {
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+  stroke: #e3a400;
+}
+
+.shop-buy:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+.shop-buy:disabled {
+  background: var(--dimple);
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: default;
+}
+
+.shop-note {
+  margin: 14px 2px 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.shop-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  opacity: 0;
+}
+
+.shop-toast[data-shown] {
+  opacity: 1;
+  animation: toast-in 180ms ease-out;
+}
+
+.shop-toast[data-ok] {
+  background: var(--c6);
+}
+
+/* Yeni oyun ve oyun sonu: yıldız satırı */
+.mode-stars,
+.gameover-stars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.mode-stars {
+  justify-content: flex-start;
+  color: var(--ink-soft);
+}
+
+.gameover-stars {
+  margin: -8px 0 12px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.gameover-tag {
+  margin: -6px 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 340px) {
+  .star-btn {
+    font-size: 16px;
+  }
+
+  .star-shop {
+    padding: 4px 9px;
+    font-size: 14px;
+  }
+
+  .shop-item {
+    grid-template-columns: 40px 1fr auto;
+    gap: 10px;
+  }
+
+  .shop-chip {
+    width: 40px;
+    height: 40px;
+  }
+
+  .shop-buy {
+    min-width: 64px;
+    padding: 0 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-star,
+  .sheet.shop,
+  .star-toast,
+  .shop-toast[data-shown] {
+    animation: none !important;
   }
 }

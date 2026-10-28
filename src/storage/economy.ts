@@ -17,8 +17,9 @@
  * değiştirilebilir, silinebilir, başka cihaza taşınmaz. Bu kayıt hile koruması ya da sunucu güvenliği
  * SAĞLAMAZ; yalnızca dürüst oyunda çift ödül, yarım satın alma ve bozuk kayıtla çökme hatalarını önler.
  *
- * Henüz oyun içinden çağrılmıyor (arayüz bağlantısı Aşama 7.2'de). Mevcut kayıtlara dokunmaz:
- * rekorlar, mod, eğitim, ses ve eski envanter anahtarı aynen kalır; eski envanter yalnızca OKUNUR.
+ * Oyun arayüzü (Aşama 7.2) bu depoyu tek kaynak olarak kullanır: src/ui/useEconomy.ts, src/ui/useGame.ts.
+ * Mevcut kayıtlara dokunmaz: rekorlar, mod, eğitim, ses ve eski envanter anahtarı aynen kalır; eski envanter
+ * yalnızca ekonomi kaydı hiç yokken bir kez OKUNUR (taşınır).
  */
 import { applyJoker } from '../engine/jokers'
 import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerKind, JokerWallet } from '../engine/types'
@@ -165,9 +166,10 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
     if (storage !== null && ownershipStatus(current.state, tabId, t) !== 'mine') {
       return { ok: false, state: current.state, reason: 'otherTab' }
     }
+    // Kalıcı olmadan yapılmaması gereken işlem (satın alma, satın alınmış joker): kayıt yoksa ya da bozulduysa hiç yapılmaz.
+    if (opts.requirePersist && (storage === null || lostPersistence())) return { ok: false, state: current.state, reason: 'storageError' }
     const result = op(current.state)
     if (!result.ok) return result
-    if (opts.requirePersist && lostPersistence()) return { ok: false, state: current.state, reason: 'storageError' }
     const next = renewOwnership(result.state, tabId, t)
     if (next === current.state) return { ...result, state: next, persisted: memory === null }
     const persisted = write(next)
@@ -215,7 +217,8 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
     },
     syncUsage: (gameId, wallet) => run((s) => syncUsage(s, gameId, wallet)),
     finishGame: (gameId, finalScore, wallet) => run((s) => finishGame(s, gameId, finalScore, wallet)),
-    purchase: (kind, requestId) => run((s) => purchase(s, kind, requestId)),
+    // Aşama 7.2: satın alma yalnızca kalıcı kayıt başarılıysa olur; yazılamazsa bakiye ve envanter aynen kalır.
+    purchase: (kind, requestId) => run((s) => purchase(s, kind, requestId), { requirePersist: true }),
   }
   return store
 }

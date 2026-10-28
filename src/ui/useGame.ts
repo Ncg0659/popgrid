@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_CONFIG, applyJoker, getShape, giveUp as engineGiveUp, newGame } from '../engine'
-import type { GameMode, GameState, JokerAction, JokerInvalidReason, Slot } from '../engine/types'
+import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, getShape, giveUp as engineGiveUp, newGame } from '../engine'
+import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerInvalidReason, Slot } from '../engine/types'
 import { describeEffect, type Effect } from '../fx/effects'
 import { describeJokerFx, type JokerFx } from '../fx/jokerEffects'
-import { inventoryStore, spendInventoryFor } from '../storage/inventory'
+import { newGameId, type StoreFailure } from '../storage/economy'
 import { modeStore } from '../storage/mode'
 import { loadBest, saveBest } from '../storage/records'
+import { CAP_TEXT, finishedGameStars, reachedCapNow, type GameStars } from './economyUi'
 import type { ArmedJoker } from './jokerUi'
+import type { EconomyApi } from './useEconomy'
 import { originFor, previewMove, type Origin, type Preview } from './placement'
 
 /** Yeni oyun tohumu: adreste ?seed=123 varsa o, yoksa tarayıcının kripto rastgeleliği (motor dışında). */
@@ -31,11 +33,31 @@ function initialMode(): GameMode {
   return modeStore.load()
 }
 
-function createGame(mode: GameMode): GameState {
+/**
+ * Eğlence: oyun başına ücretsiz haklar (motorun varsayılanı) + oyuna getirilen satın alınmış haklar.
+ * Satın alınmış haklar YALNIZCA ekonomi defterine kayıtlı oyuna getirilir (tek kaynak: src/storage/economy.ts).
+ */
+function createGame(mode: GameMode, inventory: JokerCharges = NO_JOKERS): GameState {
   if (mode === 'klasik') return newGame(freshSeed())
-  // Eğlence: oyun başına ücretsiz haklar (motorun varsayılanı) + kalıcı envanterin o anki değeri.
-  return newGame(freshSeed(), DEFAULT_CONFIG, { mode, inventory: inventoryStore.load() })
+  return newGame(freshSeed(), DEFAULT_CONFIG, { mode, inventory })
 }
+
+/** Bu sekme sahipse ekonomi envanterinin tamamı oyuna getirilir; değilse yalnızca ücretsiz haklar. */
+function inventoryFor(mode: GameMode, eco: EconomyApi): JokerCharges {
+  return mode === 'eglence' && eco.ownsNow() ? eco.store.load().state.inventory : NO_JOKERS
+}
+
+/** Ekonomi işleminin joker kullanımını engellediği durumlarda gösterilecek açıklama. */
+const ECONOMY_JOKER_TEXT: Partial<Record<StoreFailure, string>> = {
+  otherTab: 'Satın alınmış joker şu an kullanılamıyor: POPGRID başka bir sekmede açık.',
+  storageError: 'Kayıt yapılamıyor; satın alınmış joker kullanılamıyor. Ücretsiz hakların duruyor.',
+  wrongGame: 'Satın alınmış joker bu oyunda kullanılamıyor (başka sekmede yeni oyun açıldı).',
+  noActiveGame: 'Satın alınmış joker bu oyunda kullanılamıyor (başka sekmede yeni oyun açıldı).',
+  readOnly: 'Kayıt daha yeni bir sürümden; satın alınmış joker kullanılamıyor.',
+}
+
+const usesInventory = (events: readonly GameEvent[]) =>
+  events.some((e) => e.type === 'jokerUsed' && e.source === 'inventory')
 
 type Bests = Readonly<Record<GameMode, number>>
 
@@ -98,6 +120,10 @@ export interface GameApi {
   rotateSlot(slot: Slot): void
   /** "Bitir": sıkışınca oyunu sonlandırır. */
   giveUp(): void
+  /** Biten oyunun yıldız özeti (oyun sonu kartı); oyun sürerken null. */
+  readonly gameStars: GameStars | null
+  /** Kısa yıldız bilgisi (ör. 300 sınırına ulaşıldı). id her mesajda artar. */
+  readonly starNotice: JokerNotice | null
 }
 
 const REASON_TEXT: Partial<Record<JokerInvalidReason, string>> = {
@@ -106,8 +132,14 @@ const REASON_TEXT: Partial<Record<JokerInvalidReason, string>> = {
   noCharge: 'Bu jokerin hakkı kalmadı.',
 }
 
-export function useGame(): GameApi {
-  const [game, setGameState] = useState<GameState>(() => createGame(initialMode()))
+export function useGame(eco: EconomyApi): GameApi {
+  // İlk oyun: kimlik, getirilen satın alınmış haklar ve oyun birlikte, bir kez kurulur; deftere kaydı efektte yapılır.
+  const [initial] = useState(() => {
+    const mode = initialMode()
+    const inventory = inventoryFor(mode, eco)
+    return { id: newGameId(), mode, inventory, game: createGame(mode, inventory) }
+  })
+  const [game, setGameState] = useState<GameState>(initial.game)
   const [bests, setBests] = useState<Bests>(() => ({ klasik: loadBest('klasik'), eglence: loadBest('eglence') }))
   const [bestAtStart, setBestAtStart] = useState<number>(() => bests[game.mode])
   const [selected, setSelected] = useState<Slot | null>(null)
@@ -124,6 +156,13 @@ export function useGame(): GameApi {
   const gameRef = useRef(game)
   const armedRef = useRef<ArmedJoker>(null)
   const lastRefreshAt = useRef(-Infinity)
+  // Ekonomi: bu oyunun defter kimliği ve deftere kayıtlı olup olmadığı (kayıtsız oyunda yıldız ve satın alınmış joker yok).
+  const gameIdRef = useRef(initial.id)
+  const trackedRef = useRef(false)
+  const [gameStars, setGameStars] = useState<GameStars | null>(null)
+  const [starNotice, setStarNotice] = useState<JokerNotice | null>(null)
+  const ecoRef = useRef(eco)
+  ecoRef.current = eco
 
   const setGame = useCallback((next: GameState) => {
     gameRef.current = next
@@ -137,6 +176,51 @@ export function useGame(): GameApi {
     noticeId.current += 1
     setNotice({ id: noticeId.current, text })
   }, [])
+  const tellStars = useCallback((text: string) => {
+    noticeId.current += 1
+    setStarNotice({ id: noticeId.current, text })
+  }, [])
+
+  // İlk oyunu deftere kaydet (StrictMode'da efekt iki kez çalışsa da aynı kimlik: ikinci çağrı etkisiz).
+  useEffect(() => {
+    const e = ecoRef.current
+    const r = e.store.startGame(initial.id, initial.mode, initial.inventory)
+    trackedRef.current = r.ok
+    e.apply(r)
+  }, [initial])
+
+  /** Oyun sonu: yıldız ödülü bir kez; oyun defterde kapanır. */
+  const finishEconomy = useCallback(
+    (final: GameState) => {
+      if (!trackedRef.current) return
+      const e = ecoRef.current
+      const id = gameIdRef.current
+      const before = e.store.load().state
+      const r = e.store.finishGame(id, final.score, final.jokers)
+      trackedRef.current = false
+      e.apply(r)
+      if (r.ok) {
+        setGameStars(finishedGameStars(r.state, id))
+        if (reachedCapNow(before, r.state, id)) tellStars(CAP_TEXT)
+      }
+    },
+    [tellStars],
+  )
+
+  /** Başarılı hamlenin hat yıldızı (numara motordan) ve gerekiyorsa oyun sonu ödülü. */
+  const recordEconomy = useCallback(
+    (next: GameState, events: readonly GameEvent[]) => {
+      if (!trackedRef.current) return
+      const e = ecoRef.current
+      const id = gameIdRef.current
+      const before = e.store.load().state
+      const r = e.store.recordMove(id, next, events)
+      e.apply(r)
+      if (r.ok && reachedCapNow(before, r.state, id)) tellStars(CAP_TEXT)
+      if (next.gameOver) finishEconomy(next)
+    },
+    [finishEconomy, tellStars],
+  )
 
   const mode = game.mode
   const best = bests[mode]
@@ -161,6 +245,7 @@ export function useGame(): GameApi {
       effectId.current += 1
       setEffect(describeEffect(effectId.current, gameRef.current.board, p.events))
       setGame(p.next)
+      recordEconomy(p.next, p.events)
       setSelected(null)
       setAim(null)
       setArmed(null)
@@ -168,7 +253,7 @@ export function useGame(): GameApi {
       setJokerFx(null)
       return true
     },
-    [setGame, setArmed],
+    [setGame, setArmed, recordEconomy],
   )
 
   const apply = useCallback(
@@ -178,21 +263,48 @@ export function useGame(): GameApi {
     [commit],
   )
 
-  /** Joker sonucunu uygular; envanterden harcanan her hak kalıcı kayıttan tam bir kez düşülür. */
+  /**
+   * Jokeri uygular. Kayıtlı oyunda ekonomi deposu jokeri uygular ve satın alınmış hakkın düşülmesini AYNI
+   * çağrıda kaydeder (kaydedilemezse joker uygulanmaz). Kayıtsız oyunda satın alınmış hak hiç kullanılmaz.
+   */
   const runJoker = useCallback(
     (action: JokerAction): boolean => {
       const before = gameRef.current
-      const result = applyJoker(before, action)
-      if (!result.ok) {
-        const text = REASON_TEXT[result.reason]
-        if (text) say(text)
-        return false
+      let next: GameState
+      let events: readonly GameEvent[]
+      if (trackedRef.current) {
+        const e = ecoRef.current
+        const r = e.store.useJoker(gameIdRef.current, before, action)
+        if (!r.ok) {
+          const text =
+            r.reason === 'jokerInvalid'
+              ? REASON_TEXT[r.jokerReason as JokerInvalidReason]
+              : (ECONOMY_JOKER_TEXT[r.reason] ?? 'Satın alınmış joker şu an kullanılamıyor.')
+          if (text) say(text)
+          e.refresh()
+          return false
+        }
+        e.refresh()
+        next = r.game
+        events = r.events
+      } else {
+        const result = applyJoker(before, action)
+        if (!result.ok) {
+          const text = REASON_TEXT[result.reason]
+          if (text) say(text)
+          return false
+        }
+        if (usesInventory(result.events)) {
+          say('Satın alınmış jokerler bu oyunda kullanılamıyor. Ücretsiz hakların duruyor.')
+          return false
+        }
+        next = result.state
+        events = result.events
       }
-      spendInventoryFor(result.events, inventoryStore)
-      setGame(result.state)
+      setGame(next)
       jokerFxId.current += 1
-      setJokerFx(describeJokerFx(jokerFxId.current, result.events, before.tray))
-      if (result.state.stuck) say('Hâlâ sığan parça yok. Başka bir joker dene ya da oyunu bitir.')
+      setJokerFx(describeJokerFx(jokerFxId.current, events, before.tray))
+      if (next.stuck) say('Hâlâ sığan parça yok. Başka bir joker dene ya da oyunu bitir.')
       return true
     },
     [setGame, say],
@@ -208,7 +320,18 @@ export function useGame(): GameApi {
   )
 
   const start = (next: GameMode) => {
-    setGame(createGame(next))
+    // Yeni oyun önce deftere kaydedilir; kayıt olmazsa (başka sekme, eski sürüm kaydı) satın alınmış haklar getirilmez.
+    const e = ecoRef.current
+    const id = newGameId()
+    let inventory = inventoryFor(next, e)
+    const r = e.store.startGame(id, next, inventory)
+    if (!r.ok) inventory = NO_JOKERS
+    gameIdRef.current = id
+    trackedRef.current = r.ok
+    e.apply(r)
+    setGameStars(null)
+    setStarNotice(null)
+    setGame(createGame(next, inventory))
     setEffect(null)
     setBestAtStart(bests[next])
     setSelected(null)
@@ -320,7 +443,10 @@ export function useGame(): GameApi {
       if (result.ok) {
         setArmed(null)
         setGame(result.state)
+        finishEconomy(result.state)
       }
     },
+    gameStars,
+    starNotice,
   }
 }

@@ -15,13 +15,22 @@ import { Hud } from './ui/Hud'
 import { JokerBar } from './ui/JokerBar'
 import { jokerButtons, rotatableSlots } from './ui/jokerUi'
 import { ModeSheet } from './ui/ModeSheet'
+import { economyBanner, purchaseMessage, createPurchaseGuard } from './ui/economyUi'
+import { ShopSheet } from './ui/ShopSheet'
+import { StarDock } from './ui/StarDock'
+import { useEconomy } from './ui/useEconomy'
+import { randomId } from './storage/economy'
+import type { JokerKind } from './engine/types'
 import { PieceView } from './ui/PieceView'
 import { StuckNotice } from './ui/StuckNotice'
 import { Tray } from './ui/Tray'
 import { useGame } from './ui/useGame'
 
 export default function App() {
-  const g = useGame()
+  // Ekonomi (yıldız, mağaza, sekme sahipliği) oyundan ÖNCE kurulur: ilk oyun sahipliğe göre başlar.
+  const eco = useEconomy()
+  const g = useGame(eco)
+  const purchaseGuard = useRef(createPurchaseGuard(() => randomId('p')))
   const lastPointer = useRef<string>('touch')
   const boardRef = useRef<HTMLDivElement>(null)
   const { game, selected, preview, effect } = g
@@ -29,7 +38,8 @@ export default function App() {
   // Rehber katmanı: oyunun üstünde açılır; oyun durumu (tahta, skor, rekor, parçalar) hiç değişmez.
   const helpButton = () => document.querySelector<HTMLElement>('.help-btn')
   const restartButton = () => document.querySelector<HTMLElement>('.restart')
-  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro'
+  const shopButton = () => document.querySelector<HTMLElement>('.star-btn')
+  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro' | 'shop'
   // Açılışta: yeni oyuncuya temel eğitim; Eğlence ile açılan ve tanıtımı görmemiş oyuncuya joker tanıtımı.
   const [overlay, setOverlay] = useState<Overlay>(() => {
     if (tutorialStore.shouldAutoShow(g.best)) return 'tutorial'
@@ -94,6 +104,19 @@ export default function App() {
   else if (selected !== null && !preview) hint = 'Tahtada parçayı koymak istediğin yere dokun.'
   else if (preview && !preview.ok) hint = 'Bu parça buraya sığmıyor.'
   else if (preview?.ok) hint = lastPointer.current === 'mouse' ? 'Tıkla ve yerleştir.' : 'Yerleştirmek için parçaya tekrar dokun.'
+
+  /** Mağazada tek dokunuşla satın alma. Yalnızca kalıcı kayıt başarılıysa "alındı" denir. */
+  const buy = (kind: JokerKind) => {
+    const id = purchaseGuard.current.request(performance.now())
+    if (!id) return { ok: false, text: 'Bir an bekle…' }
+    const r = eco.store.purchase(kind, id)
+    const success = r.ok && r.persisted
+    purchaseGuard.current.settle(performance.now(), success)
+    eco.apply(r)
+    return { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true } : { ok: false, reason: r.reason }) }
+  }
+
+  const banner = economyBanner(eco.status, eco.persistent)
 
   const startMode = (mode: 'klasik' | 'eglence') => {
     g.startGame(mode)
@@ -180,6 +203,13 @@ export default function App() {
           {hint}
         </p>
       )}
+      <StarDock
+        stars={eco.state.stars}
+        onOpenShop={() => setOverlay('shop')}
+        notice={g.starNotice}
+        banner={banner}
+        onTakeOver={eco.takeOver}
+      />
       <FxCanvas effect={effect} boardRef={boardRef} reducedMotion={reducedMotion} jokerFx={jokerFx} />
       {drag && (
         <div ref={floatRef} className="drag-float" aria-hidden="true">
@@ -192,6 +222,7 @@ export default function App() {
           score={game.score}
           best={g.best}
           mode={game.mode}
+          stars={g.gameStars}
           isNewBest={game.score > g.bestAtStart && game.score > 0}
           onRestart={g.restart}
           onChooseMode={() => setOverlay('mode')}
@@ -212,6 +243,7 @@ export default function App() {
       <ModeSheet
         current={game.mode}
         bests={g.bests}
+        stars={eco.state.stars}
         onStart={startMode}
         onClose={() => setOverlay('none')}
         returnFocus={restartButton}
@@ -223,6 +255,16 @@ export default function App() {
         onReplayTutorial={() => setOverlay('tutorial')}
         onReplayJokerIntro={() => setOverlay('jokerIntro')}
         returnFocus={helpButton}
+      />
+    )}
+    {overlay === 'shop' && (
+      <ShopSheet
+        state={eco.state}
+        status={eco.status}
+        persistent={eco.persistent}
+        onBuy={buy}
+        onClose={() => setOverlay('none')}
+        returnFocus={shopButton}
       />
     )}
     {overlay === 'jokerIntro' && (

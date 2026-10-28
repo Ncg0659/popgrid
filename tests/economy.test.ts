@@ -1017,16 +1017,29 @@ describe('K6 · satın alma sırasında sekme yenileme', () => {
     expect(after.load().state.stars).toBe(25)
   })
 
-  it('yazma başarısız (kota): alım yalnızca bellekte; yenilemede ikisi birlikte geri döner, yarım kalmaz', () => {
+  it('yazma başarısız (kota): satın alma yapılmaz (Aşama 7.2); bakiye ve envanter ne bellekte ne kayıtta değişir', () => {
     const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
     const failing = { getItem: st.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
     const store = tab(failing)
     store.claim()
     const r = store.purchase('yenile', 'p')
-    expect(r.ok && r.persisted).toBe(false)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('storageError')
+    expect(store.load().state.stars).toBe(50)
+    expect(store.load().state.inventory.yenile).toBe(0)
+    // İkinci deneme de aynı: yarım alım yok.
+    expect(store.purchase('yenile', 'p2').ok).toBe(false)
     const reloaded = tab(st).load().state
     expect(reloaded.stars).toBe(50)
     expect(reloaded.inventory.yenile).toBe(0)
+  })
+
+  it('depolama hiç yoksa satın alma kapalı (kalıcı olmayan alım gösterilmez)', () => {
+    const store = tab(null)
+    expect(store.claim().ok).toBe(true)
+    const r = store.purchase('dondur', 'p')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('storageError')
   })
 })
 

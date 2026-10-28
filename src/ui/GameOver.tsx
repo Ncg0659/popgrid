@@ -1,5 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from 'react'
 import type { GameMode } from '../engine/types'
+import { fmtStars, type GameStars } from './economyUi'
+import { StarIcon } from './StarIcon'
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
@@ -14,9 +16,11 @@ interface Props {
   /** Mod seçimi penceresini açar (yeni oyun başlarken mod seçilir). */
   onChooseMode(): void
   mode: GameMode
+  /** Bu oyunda kazanılan yıldız (oyun deftere kayıtlı değilse null). */
+  stars?: GameStars | null
 }
 
-export function GameOver({ score, isNewBest, best, onRestart, onChooseMode, mode }: Props) {
+export function GameOver({ score, isNewBest, best, onRestart, onChooseMode, mode, stars = null }: Props) {
   const button = useRef<HTMLButtonElement>(null)
   useEffect(() => button.current?.focus(), [])
   // Oyunu bitiren son dokunuşun ardından tarayıcının gönderdiği tıklama, yeni açılan bu pencerenin
@@ -36,6 +40,15 @@ export function GameOver({ score, isNewBest, best, onRestart, onChooseMode, mode
         <p className="gameover-best">
           {isNewBest ? 'Yeni rekor!' : `${mode === 'eglence' ? 'Eğlence rekoru' : 'Rekor'}: ${fmt(best)}`}
         </p>
+        {stars && (
+          <p className="gameover-stars">
+            <StarIcon />
+            <span>
+              +{fmtStars(stars.earned)} yıldız{stars.capped ? ' (oyun sınırı)' : ''}
+            </span>
+          </p>
+        )}
+        {stars?.usedPurchased && <p className="gameover-tag">Satın alınmış joker kullanıldı: skor ayrı kayıtta.</p>}
         <button ref={button} type="button" className="cta" onClick={guarded(onRestart)}>
           Yeniden oyna
         </button>
