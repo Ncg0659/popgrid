@@ -3,7 +3,7 @@
  * Kurallar src/economy/'dedir; burası yalnızca "ne gösterilir, hangi düğme açık" sorularını cevaplar.
  */
 import { DEFAULT_FREE_JOKERS, JOKER_KINDS } from '../engine'
-import type { JokerKind } from '../engine/types'
+import type { GameMode, GameState, JokerCharges, JokerKind } from '../engine/types'
 import { starsLeftThisGame, type EconomyState } from '../economy/ledger'
 import { FUN_STAR_CAP, JOKER_PRICES } from '../economy/rules'
 import type { StoreFailure } from '../storage/economy'
@@ -71,10 +71,13 @@ export function shopBlockedReason(status: EconomyStatus, persistent: boolean): s
 
 export const FREE_RIGHTS_NOTE = `Her Eğlence oyununda ücretsiz: Çekiç ${DEFAULT_FREE_JOKERS.cekic}, Yenile ${DEFAULT_FREE_JOKERS.yenile}, Döndür ${DEFAULT_FREE_JOKERS.dondur}. Satın aldıkların ücretsizler bitince kullanılır ve bir sonraki Eğlence oyununda hazır olur.`
 
+/** Başarılı satın alma bildirimi: jokerin ne zaman kullanılabileceğini de söyler. */
+export const NEXT_GAME_TEXT = 'Bir sonraki Eğlence oyununda kullanabilirsin.'
+
 /** Satın alma sonucu kısa bildirimi. */
 export function purchaseMessage(kind: JokerKind, result: { ok: true } | { ok: false; reason: StoreFailure }): string {
   const name = JOKER_NAMES[kind]
-  if (result.ok) return `${name} alındı!`
+  if (result.ok) return `${name} alındı! ${NEXT_GAME_TEXT}`
   switch (result.reason) {
     case 'insufficientStars':
       return 'Yeterli yıldızın yok.'
@@ -176,4 +179,59 @@ export function economyBanner(status: EconomyStatus, persistent: boolean): Econo
     }
   }
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Rekor kategorileri (Aşama 7.2 R1)
+// ---------------------------------------------------------------------------
+
+/**
+ * klasik: Klasik rekor. eglence: satın alınmış joker KULLANILMAYAN Eğlence oyunları (normal Eğlence rekoru,
+ * eski anahtar popgrid:v1:best:eglence aynen sürer). eglenceSatin: satın alınmış joker kullanılan Eğlence
+ * oyunları (ekonomi defterindeki funBests.withPurchased).
+ */
+export type RecordCategory = 'klasik' | 'eglence' | 'eglenceSatin'
+
+export const RECORD_LABELS: Readonly<Record<RecordCategory, string>> = {
+  klasik: 'Rekor',
+  eglence: 'Eğlence rekoru',
+  eglenceSatin: 'Satın alınmış jokerli rekor',
+}
+
+/** Bu oyunda satın alınmış joker kullanıldı mı? Oyunun cüzdanı oyun başındaki envanterle karşılaştırılır. */
+export function purchasedUsedInGame(game: GameState, inventoryAtStart: JokerCharges): boolean {
+  const inv = game.mode === 'eglence' ? game.jokers?.inventory : undefined
+  return !!inv && JOKER_KINDS.some((k) => inv[k] < inventoryAtStart[k])
+}
+
+export function recordCategory(mode: GameMode, usedPurchased: boolean): RecordCategory {
+  if (mode === 'klasik') return 'klasik'
+  return usedPurchased ? 'eglenceSatin' : 'eglence'
+}
+
+export interface RecordView {
+  readonly category: RecordCategory
+  readonly label: string
+  /** Gösterilecek rekor (oyun sürerken skor geçtiyse skor). */
+  readonly best: number
+  /** Bu kategoride yeni rekor mu (oyunun başındaki rekora göre)? */
+  readonly isNew: boolean
+  /** Oyun sonu kartındaki satır. */
+  readonly line: string
+}
+
+/**
+ * @param bestAtStart bu kategorinin oyun başındaki rekoru
+ * @param storedBest bu kategorinin şu an kayıtlı rekoru
+ */
+export function recordView(category: RecordCategory, score: number, bestAtStart: number, storedBest: number): RecordView {
+  const best = Math.max(storedBest, score)
+  const isNew = score > 0 && score > bestAtStart
+  const label = RECORD_LABELS[category]
+  const line = isNew
+    ? category === 'eglenceSatin'
+      ? 'Yeni satın alınmış jokerli rekor!'
+      : 'Yeni rekor!'
+    : `${label}: ${fmtStars(best)}`
+  return { category, label, best, isNew, line }
 }

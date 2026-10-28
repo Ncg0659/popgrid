@@ -13,6 +13,8 @@ interface Props {
   bests: Readonly<Record<GameMode, number>>
   /** Yıldız bakiyesi (açılış/yeni oyun ekranında gösterilir). */
   stars: number
+  /** Satın alınmış jokerli Eğlence rekoru (0 ise gösterilmez). */
+  boughtBest?: number
   onStart(mode: GameMode): void
   onClose(): void
   returnFocus?: () => HTMLElement | null
@@ -22,7 +24,7 @@ interface Props {
  * Yeni oyun: mod seçimi. Mod yalnızca burada, oyun başlarken seçilir; oyun ortasında değişmez.
  * Kartlardan birine dokunmak o modda yeni oyunu hemen başlatır.
  */
-export function ModeSheet({ current, bests, stars, onStart, onClose, returnFocus }: Props) {
+export function ModeSheet({ current, bests, stars, boughtBest = 0, onStart, onClose, returnFocus }: Props) {
   const currentRef = useRef<HTMLButtonElement>(null)
   const dialog = useDialog<HTMLDivElement>(onClose, currentRef, returnFocus)
   const j = DEFAULT_FREE_JOKERS
@@ -88,6 +90,7 @@ export function ModeSheet({ current, bests, stars, onStart, onClose, returnFocus
                 Jokerlerle: Çekiç {j.cekic}, Yenile {j.yenile}, Döndür {j.dondur}.
               </span>
               <span className="mode-best">Eğlence rekoru: {fmt(bests.eglence)}</span>
+              {boughtBest > 0 && <span className="mode-best">Satın alınmış jokerli: {fmt(boughtBest)}</span>}
             </span>
           </button>
         </div>

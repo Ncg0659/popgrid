@@ -5,8 +5,17 @@ import { describeEffect, type Effect } from '../fx/effects'
 import { describeJokerFx, type JokerFx } from '../fx/jokerEffects'
 import { newGameId, type StoreFailure } from '../storage/economy'
 import { modeStore } from '../storage/mode'
-import { loadBest, saveBest } from '../storage/records'
-import { CAP_TEXT, finishedGameStars, reachedCapNow, type GameStars } from './economyUi'
+import { loadBest, restoreBest, saveBest } from '../storage/records'
+import {
+  CAP_TEXT,
+  finishedGameStars,
+  purchasedUsedInGame,
+  reachedCapNow,
+  recordCategory,
+  recordView,
+  type GameStars,
+  type RecordView,
+} from './economyUi'
 import type { ArmedJoker } from './jokerUi'
 import type { EconomyApi } from './useEconomy'
 import { originFor, previewMove, type Origin, type Preview } from './placement'
@@ -73,11 +82,15 @@ export interface JokerNotice {
 export interface GameApi {
   readonly game: GameState
   readonly mode: GameMode
-  /** Bu modun rekoru. */
+  /** Bu oyunun rekor kategorisindeki rekor (Eğlence'de satın alınmış joker kullanılınca ayrı kategori). */
   readonly best: number
   readonly bests: Bests
-  /** Bu oyun başladığında geçerli olan rekor ("Yeni rekor!" için). */
+  /** Satın alınmış jokerli Eğlence rekoru (ekonomi defteri, funBests.withPurchased). */
+  readonly boughtBest: number
+  /** Bu oyun başladığında geçerli olan (normal) rekor. */
   readonly bestAtStart: number
+  /** Bu oyunun rekor kategorisi, etiketi ve "yeni rekor" durumu (HUD ve oyun sonu kartı). */
+  readonly record: RecordView
   readonly selected: Slot | null
   readonly preview: Preview | null
   /** Geçersiz denemede artar; arayüz sallanma geri bildirimi için kullanır. */
@@ -139,6 +152,9 @@ export function useGame(eco: EconomyApi): GameApi {
     const inventory = inventoryFor(mode, eco)
     return { id: newGameId(), mode, inventory, game: createGame(mode, inventory) }
   })
+  // Oyuna getirilen satın alınmış haklar: kullanılıp kullanılmadığı bundan anlaşılır (rekor kategorisi).
+  const inventoryAtStartRef = useRef<JokerCharges>(initial.inventory)
+  const [boughtBestAtStart, setBoughtBestAtStart] = useState(() => eco.state.funBests.withPurchased)
   const [game, setGameState] = useState<GameState>(initial.game)
   const [bests, setBests] = useState<Bests>(() => ({ klasik: loadBest('klasik'), eglence: loadBest('eglence') }))
   const [bestAtStart, setBestAtStart] = useState<number>(() => bests[game.mode])
@@ -223,7 +239,14 @@ export function useGame(eco: EconomyApi): GameApi {
   )
 
   const mode = game.mode
-  const best = bests[mode]
+  const usedPurchased = purchasedUsedInGame(game, inventoryAtStartRef.current)
+  const category = recordCategory(mode, usedPurchased)
+  const boughtBest = eco.state.funBests.withPurchased
+  const record =
+    category === 'eglenceSatin'
+      ? recordView(category, game.score, boughtBestAtStart, boughtBest)
+      : recordView(category, game.score, bestAtStart, bests[mode])
+  const best = record.best
 
   const preview = useMemo(
     () => (selected !== null && aim ? previewMove(game, selected, aim) : null),
@@ -231,12 +254,21 @@ export function useGame(eco: EconomyApi): GameApi {
   )
 
   useEffect(() => {
+    // Satın alınmış joker kullanılan Eğlence oyunu normal Eğlence rekoruna yazılmaz (ayrı kategori, defterde).
+    // Bu oyun sırasında normal rekora yazılmış bir değer varsa oyunun başındaki değerine geri alınır.
+    if (usedPurchased) {
+      if (bests.eglence > bestAtStart) {
+        setBests((b) => ({ ...b, eglence: bestAtStart }))
+        restoreBest(bestAtStart, 'eglence')
+      }
+      return
+    }
     // Rekor modun kendi anahtarına yazılır; Klasik ve Eğlence birbirini etkilemez.
     if (game.score > bests[game.mode]) {
       setBests((b) => ({ ...b, [game.mode]: game.score }))
       saveBest(game.score, game.mode)
     }
-  }, [game.score, game.mode, bests])
+  }, [game.score, game.mode, bests, usedPurchased, bestAtStart])
 
   /** Geçerli önizlemeyi uygular ve efekt tanımını üretir. Motorun sonucu aynen kullanılır. */
   const commit = useCallback(
@@ -331,6 +363,8 @@ export function useGame(eco: EconomyApi): GameApi {
     e.apply(r)
     setGameStars(null)
     setStarNotice(null)
+    inventoryAtStartRef.current = inventory
+    setBoughtBestAtStart(e.store.load().state.funBests.withPurchased)
     setGame(createGame(next, inventory))
     setEffect(null)
     setBestAtStart(bests[next])
@@ -346,7 +380,9 @@ export function useGame(eco: EconomyApi): GameApi {
     mode,
     best,
     bests,
+    boughtBest,
     bestAtStart,
+    record,
     selected,
     preview,
     rejectCount,

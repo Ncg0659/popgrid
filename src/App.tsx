@@ -142,6 +142,8 @@ export default function App() {
           score={game.score}
           best={g.best}
           mode={game.mode}
+          recordLabel={g.record.label}
+          boughtCategory={g.record.category === 'eglenceSatin'}
           canRestartFreely={game.gameOver || game.moveCount === 0}
           effect={effect}
           soundOn={soundOn}
@@ -225,7 +227,9 @@ export default function App() {
           best={g.best}
           mode={game.mode}
           stars={g.gameStars}
-          isNewBest={game.score > g.bestAtStart && game.score > 0}
+          isNewBest={g.record.isNew}
+          recordLine={g.record.line}
+          boughtCategory={g.record.category === 'eglenceSatin'}
           onRestart={g.restart}
           onChooseMode={() => setOverlay('mode')}
         />
@@ -246,6 +250,7 @@ export default function App() {
         current={game.mode}
         bests={g.bests}
         stars={eco.state.stars}
+        boughtBest={g.boughtBest}
         onStart={startMode}
         onClose={() => setOverlay('none')}
         returnFocus={restartButton}

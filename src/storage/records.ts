@@ -22,6 +22,20 @@ export function loadBest(mode: GameMode = 'klasik'): number {
   }
 }
 
+/**
+ * Aşama 7.2: Eğlence oyununda satın alınmış joker kullanılınca o oyun ayrı rekor kategorisine geçer;
+ * oyun sırasında normal Eğlence rekoruna yazılmış değer oyunun başındaki değerine geri alınır.
+ * Hiçbir zaman başlangıçtaki rekorun altına inmez; başlangıçta rekor yoksa anahtar silinir (eski hâl).
+ */
+export function restoreBest(value: number, mode: GameMode = 'klasik'): void {
+  try {
+    if (value > 0) window.localStorage.setItem(bestKey(mode), String(value))
+    else window.localStorage.removeItem(bestKey(mode))
+  } catch {
+    // Depolama yoksa yalnızca bu oturumda.
+  }
+}
+
 export function saveBest(score: number, mode: GameMode = 'klasik'): void {
   try {
     window.localStorage.setItem(bestKey(mode), String(score))

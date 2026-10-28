@@ -8,12 +8,16 @@ import {
   economyBanner,
   finishedGameStars,
   fmtStarsShort,
+  purchasedUsedInGame,
+  recordCategory,
+  recordView,
   purchaseMessage,
   reachedCapNow,
   shopBlockedReason,
   shopItems,
 } from '../src/ui/economyUi'
-import type { GameEvent } from '../src/engine'
+import { DEFAULT_CONFIG, applyJoker, newGame, play, type GameEvent, type GameState } from '../src/engine'
+import { greedyBot } from '../scripts/bot'
 
 const rich = (stars: number): EconomyState => ({ ...initialEconomy(), stars })
 const cleared = (n: number): GameEvent => ({ type: 'cleared', rows: Array.from({ length: n }, (_, i) => i), cols: [], cells: [] })
@@ -50,7 +54,8 @@ describe('mağaza görünümü', () => {
   })
 
   it('satın alma mesajları: yalnızca başarıda "alındı"; başarısızlıkta kayıp olmadığı söylenir', () => {
-    expect(purchaseMessage('cekic', { ok: true })).toBe('Çekiç alındı!')
+    // Aşama 7.2 R3: başarı mesajı jokerin bir sonraki Eğlence oyununda kullanılacağını söyler.
+    expect(purchaseMessage('cekic', { ok: true })).toBe('Çekiç alındı! Bir sonraki Eğlence oyununda kullanabilirsin.')
     expect(purchaseMessage('yenile', { ok: false, reason: 'insufficientStars' })).toBe('Yeterli yıldızın yok.')
     expect(purchaseMessage('yenile', { ok: false, reason: 'storageError' })).toContain('değişmedi')
     expect(purchaseMessage('yenile', { ok: false, reason: 'otherTab' })).toContain('başka bir sekmede')
@@ -152,5 +157,53 @@ describe('kısa yıldız yazımı (dar düğme)', () => {
       '999,9B',
       '1,2Mn',
     ])
+  })
+})
+
+describe('rekor kategorileri (R1)', () => {
+  const inv = { cekic: 1, yenile: 0, dondur: 0 }
+  /** Önce ücretsiz, sonra satın alınmış Çekiç kullanan gerçek Eğlence oyunu. */
+  function hammers(): { afterFree: GameState; afterBought: GameState } {
+    let s = newGame(5, DEFAULT_CONFIG, { mode: 'eglence', inventory: inv })
+    while (s.board.filter((c) => c !== 0).length < 2) {
+      const r = play(s, greedyBot(s)!)
+      if (!r.ok) throw new Error(r.reason)
+      s = r.state
+    }
+    const hit = (g: GameState) => {
+      const r = applyJoker(g, { type: 'cekic', cell: g.board.findIndex((c) => c !== 0) })
+      if (!r.ok) throw new Error(r.reason)
+      return r.state
+    }
+    const afterFree = hit(s)
+    return { afterFree, afterBought: hit(afterFree) }
+  }
+
+  it('ücretsiz joker kullanımı normal Eğlence kategorisinde kalır; satın alınmış kullanım ayrı kategoriye geçirir', () => {
+    const { afterFree, afterBought } = hammers()
+    expect(afterFree.jokers!.free.cekic).toBe(0)
+    expect(purchasedUsedInGame(afterFree, inv)).toBe(false)
+    expect(recordCategory('eglence', purchasedUsedInGame(afterFree, inv))).toBe('eglence')
+    expect(purchasedUsedInGame(afterBought, inv)).toBe(true)
+    expect(recordCategory('eglence', purchasedUsedInGame(afterBought, inv))).toBe('eglenceSatin')
+  })
+
+  it('Klasik ve satın alınmış joker getirilmeyen oyun her zaman kendi kategorisinde', () => {
+    expect(purchasedUsedInGame(newGame(3), inv)).toBe(false)
+    expect(recordCategory('klasik', true)).toBe('klasik')
+    const free = newGame(9, DEFAULT_CONFIG, { mode: 'eglence' })
+    const r = applyJoker(free, { type: 'yenile' })
+    expect(r.ok && purchasedUsedInGame(r.state, { cekic: 0, yenile: 0, dondur: 0 })).toBe(false)
+  })
+
+  it('yeni rekor bildirimi yalnızca kendi kategorisinin başlangıç rekoruna göre', () => {
+    // Normal Eğlence rekoru 157 (eski oyuncu), satın alınmışlı rekor 900.
+    expect(recordView('eglence', 200, 157, 200).line).toBe('Yeni rekor!')
+    expect(recordView('eglenceSatin', 200, 900, 900)).toMatchObject({ isNew: false, best: 900, line: 'Satın alınmış jokerli rekor: 900' })
+    expect(recordView('eglenceSatin', 1200, 900, 1200)).toMatchObject({ isNew: true, line: 'Yeni satın alınmış jokerli rekor!' })
+    // Satın alınmışlı rekor yokken (0) ilk oyun yeni rekordur; normal rekor etkilenmez.
+    expect(recordView('eglenceSatin', 50, 0, 50).isNew).toBe(true)
+    expect(recordView('eglence', 100, 157, 157)).toMatchObject({ isNew: false, line: 'Eğlence rekoru: 157' })
+    expect(recordView('klasik', 0, 0, 0).isNew).toBe(false)
   })
 })
