@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { jokerCue, moveCue, purchaseCue } from '../src/audio/soundCue'
 import { cellCenter } from '../src/fx/boardGeometry'
 import { describeEffect, type Effect } from '../src/fx/effects'
-import { SHOP_TOAST_MS, STAR_BANNER_MS, STAR_CHIP_HOLD_MS, STAR_CHIP_IN_MS, STAR_CHIP_MS, STAR_CHIP_OUT_MS, STAR_COUNT_MS, STAR_NOTICE_MS } from '../src/fx/fxTiming'
+import { GAMEOVER_STARS_DELAY_MS, SHOP_TOAST_MS, STAR_BANNER_MS, STAR_CHIP_HOLD_MS, STAR_CHIP_IN_MS, STAR_CHIP_MS, STAR_CHIP_OUT_MS, STAR_COUNT_MS, STAR_NOTICE_MS } from '../src/fx/fxTiming'
 import { BOARD_SIZE, type GameEvent } from '../src/engine/types'
 import { awardMove, initialEconomy, startGame, type EconomyState } from '../src/economy/ledger'
 import { chipTimeLeft, starsGained, tweenStars } from '../src/ui/starFeedback'
@@ -161,5 +161,13 @@ describe('7.3c satın alma sesi eşlemesi', () => {
     expect(purchaseCue({ ok: true })).toEqual({ kind: 'purchase' })
     expect(purchaseCue({ ok: false })).toBe(null)
     expect(purchaseCue(null)).toBe(null)
+  })
+})
+
+describe('7.3d oyun sonu sayımı süreleri', () => {
+  it('150 ms bekleme + 300 ms sayım = 450 ms; son değer kesin', () => {
+    expect(GAMEOVER_STARS_DELAY_MS + STAR_COUNT_MS).toBe(450)
+    expect(tweenStars(0, 45, STAR_COUNT_MS)).toBe(45)
+    expect(tweenStars(0, 300, 0)).toBe(0)
   })
 })

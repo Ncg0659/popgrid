@@ -242,6 +242,7 @@ export default function App() {
           isNewBest={g.record.isNew}
           recordLine={g.record.line}
           boughtCategory={g.record.category === 'eglenceSatin'}
+          reducedMotion={reducedMotion}
           onRestart={g.restart}
           onChooseMode={() => setOverlay('mode')}
         />

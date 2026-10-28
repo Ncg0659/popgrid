@@ -30,3 +30,7 @@ export const SHOP_CHECK_HOLD_MS = 700
 export const SHOP_CHECK_OUT_MS = 150
 /** "Sende" sayısı ve joker hak sayısı: tek yumuşak zıplama. */
 export const SOFT_BUMP_MS = 260
+
+// ---------- Aşama 7.3d: oyun sonu yıldız sayımı ----------
+/** Kart yerleşsin diye sayım öncesi bekleme; sayım STAR_COUNT_MS sürer (toplam 450 ms). */
+export const GAMEOVER_STARS_DELAY_MS = 150

@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import type { GameMode } from '../engine/types'
 import { fmtStars, type GameStars } from './economyUi'
+import { GAMEOVER_STARS_DELAY_MS, STAR_COUNT_MS } from '../fx/fxTiming'
 import { StarIcon } from './StarIcon'
+import { tweenStars } from './starFeedback'
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
@@ -22,9 +24,42 @@ interface Props {
   recordLine?: string
   /** Bu oyunda satın alınmış joker kullanıldı (ayrı rekor kategorisi). */
   boughtCategory?: boolean
+  reducedMotion?: boolean
 }
 
-export function GameOver({ score, isNewBest, best, onRestart, onChooseMode, mode, stars = null, recordLine, boughtCategory = false }: Props) {
+/**
+ * Oyun sonu yıldızı (Aşama 7.3d): kart yerleştikten 150 ms sonra 0'dan kazanılana 300 ms'de sayılır.
+ * Son değer defterden gelir (oyun özeti); hareketi azalt'ta hemen tam yazılır. Dokunma korumasına dokunmaz.
+ */
+function useCountUp(target: number, reducedMotion: boolean): number {
+  const [shown, setShown] = useState(reducedMotion ? target : 0)
+  useEffect(() => {
+    if (reducedMotion || target <= 0) {
+      setShown(target)
+      return
+    }
+    setShown(0)
+    let raf = 0
+    let start = 0
+    const tick = (now: number) => {
+      if (!start) start = now
+      const v = tweenStars(0, target, now - start, false, STAR_COUNT_MS)
+      setShown(v)
+      if (v !== target) raf = requestAnimationFrame(tick)
+    }
+    const delay = window.setTimeout(() => {
+      raf = requestAnimationFrame(tick)
+    }, GAMEOVER_STARS_DELAY_MS)
+    return () => {
+      window.clearTimeout(delay)
+      cancelAnimationFrame(raf)
+    }
+  }, [target, reducedMotion])
+  return shown
+}
+
+export function GameOver({ score, isNewBest, best, onRestart, onChooseMode, mode, stars = null, recordLine, boughtCategory = false, reducedMotion = false }: Props) {
+  const starsShown = useCountUp(stars?.earned ?? 0, reducedMotion)
   const button = useRef<HTMLButtonElement>(null)
   useEffect(() => button.current?.focus(), [])
   // Oyunu bitiren son dokunuşun ardından tarayıcının gönderdiği tıklama, yeni açılan bu pencerenin
@@ -56,7 +91,7 @@ export function GameOver({ score, isNewBest, best, onRestart, onChooseMode, mode
           <p className="gameover-stars">
             <StarIcon />
             <span>
-              +{fmtStars(stars.earned)} yıldız{stars.capped ? ' (oyun sınırı)' : ''}
+              +{fmtStars(starsShown)} yıldız{stars.capped ? ' (oyun sınırı)' : ''}
             </span>
           </p>
         )}

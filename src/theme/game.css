@@ -2459,6 +2459,8 @@ button {
 }
 
 .gameover-stars {
+  /* Aşama 7.3d: sayılırken rakamlar aynı genişlikte (satır kaymaz). */
+  font-variant-numeric: tabular-nums;
   margin: -8px 0 12px;
   font-size: 18px;
   font-weight: 800;
