@@ -2,9 +2,9 @@
  * Yıldız ekonomisinin kuralları (Aşama 7.1). Saf TypeScript: tarayıcı, React, zamanlayıcı yok.
  * Oyun motorunu DEĞİŞTİRMEZ; yalnızca motorun olaylarını ve son skorunu okur.
  *
- * DENEYSEL — ilk simülasyon değerleri (docs/sim-economy.md). Kullanıcı onayı olmadan değiştirilmez.
+ * Onaylı değerler (Aşama 7.1: docs/sim-economy.md, docs/asama-7.1-dengeleme.md). Kullanıcı onayı olmadan değiştirilmez.
  */
-import type { GameEvent, JokerCharges, JokerKind } from '../engine/types'
+import type { GameEvent, GameMode, JokerCharges, JokerKind } from '../engine/types'
 
 /** Tek hamlede temizlenen hat sayısına göre yıldız: 1 → 2, 2 → 5, 3 ve üstü → 10. Birikmez. */
 export const LINE_CLEAR_STARS: Readonly<{ one: number; two: number; threePlus: number }> = {
@@ -15,6 +15,19 @@ export const LINE_CLEAR_STARS: Readonly<{ one: number; two: number; threePlus: n
 
 /** Oyun sonu: her tam 100 puan için 5 yıldız. */
 export const STARS_PER_HUNDRED_POINTS = 5
+
+/**
+ * Eğlence Modu'nda bir oyunda kazanılabilecek en fazla yıldız (hat + oyun sonu toplamı). Onaylı karar
+ * (docs/asama-7.1-dengeleme.md): satın alınmış jokerin kendi parasını çıkarma döngüsünü kırar.
+ * Klasik Mod'da tavan yoktur (joker olmadığı için döngü de yoktur).
+ * Tavan dolunca oyun, skor ve jokerler normal sürer; yalnızca o oyunda yeni yıldız verilmez.
+ */
+export const FUN_STAR_CAP = 300
+
+/** Modun oyun başı yıldız tavanı; null = tavan yok. */
+export function starCapFor(mode: GameMode): number | null {
+  return mode === 'eglence' ? FUN_STAR_CAP : null
+}
 
 /** Mağaza fiyatları (yıldız). */
 export const JOKER_PRICES: JokerCharges = { cekic: 25, yenile: 40, dondur: 20 }

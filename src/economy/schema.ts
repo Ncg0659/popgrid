@@ -7,6 +7,10 @@
  * - 'corrupt' : JSON bozuk ya da alanlar geçersiz. Oyun çökmez; varsayılanla devam edilir
  *               (depolama katmanı bozuk kaydı silmeden önce yedekler).
  * - 'future'  : daha yeni bir sürümün kaydı (eski sürüm açıldı). Okunmaz ve ÜZERİNE YAZILMAZ.
+ *
+ * Sürüm geçişleri (sürümlü migrasyon):
+ * - 1 → 2: sahiplik alanı (owner) eklendi; eski kayıtta yoktur, null olarak okunur. Diğer bütün alanlar
+ *   (bakiye, envanter, etkin oyun, geçmiş, rekorlar, toplamlar) aynen taşınır. İlk yazmada kayıt 2 olur.
  */
 import { JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameMode, JokerCharges } from '../engine/types'
@@ -21,9 +25,10 @@ import {
   type EconomyState,
   type FinishedGame,
   type JokerUsage,
+  type Ownership,
 } from './ledger'
 
-export type EconomyLoadStatus = 'empty' | 'ok' | 'corrupt' | 'future'
+export type EconomyLoadStatus = 'empty' | 'ok' | 'migrated' | 'corrupt' | 'future'
 
 export interface EconomyLoad {
   readonly state: EconomyState
@@ -84,6 +89,15 @@ function finished(v: unknown): FinishedGame | null {
   return Object.values(g).some((x) => x === null) ? null : (g as FinishedGame)
 }
 
+/** Sahiplik: null ya da { tabId, until }. Geçersizse undefined. */
+function owner(v: unknown): Ownership | null | undefined {
+  if (v === null) return null
+  if (!isObj(v)) return undefined
+  const tabId = id(v.tabId)
+  const until = count(v.until)
+  return tabId !== null && until !== null ? { tabId, until } : undefined
+}
+
 /** Eski (Aşama 6.2) envanter anahtarının içeriği. Bozuksa 0. */
 export function parseLegacyInventory(raw: string | null): JokerCharges {
   if (!raw) return NO_JOKERS
@@ -125,6 +139,8 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
     gamesAbandoned: count(t.gamesAbandoned),
   }
   const purchaseIds = Array.isArray(v.purchaseIds) ? v.purchaseIds.map(id) : null
+  // Sürüm 1'de sahiplik alanı yoktu: null olarak taşınır.
+  const own = version === 1 ? null : owner(v.owner)
 
   if (
     stars === null ||
@@ -137,12 +153,13 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
     !totals ||
     Object.values(totals).some((x) => x === null) ||
     !purchaseIds ||
-    purchaseIds.some((x) => x === null)
+    purchaseIds.some((x) => x === null) ||
+    own === undefined
   ) {
     return corrupt()
   }
   return {
-    status: 'ok',
+    status: version < ECONOMY_SCHEMA_VERSION ? 'migrated' : 'ok',
     state: {
       schemaVersion: ECONOMY_SCHEMA_VERSION,
       stars,
@@ -152,6 +169,7 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
       funBests: funBests as EconomyState['funBests'],
       totals: totals as EconomyState['totals'],
       purchaseIds: (purchaseIds as string[]).slice(-PURCHASE_ID_LIMIT),
+      owner: own,
     },
   }
 }

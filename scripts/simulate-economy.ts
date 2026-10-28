@@ -407,6 +407,7 @@ function report(results: ProfileResult[]): string {
   L.push('- Oyun motoru: üretici sürümü 1, varsayılan kurtarma ayarı, hamle sınırı 3.000. Motor bu aşamada değişmedi.')
   L.push('- Yıldızlar gerçek ekonomi defteriyle hesaplandı (`src/economy/ledger.ts`): her hamlede `awardMove`, joker sonrasında `syncUsage`, oyun sonunda `finishGame`.')
   L.push('- Kurallar: tek hamlede 1 hat = 2, 2 hat = 5, 3+ hat = 10 yıldız (birikmez); oyun sonunda `Math.floor(skor / 100) * 5`. Joker yıldız vermez.')
+  L.push('- Yıldız tavanı (onaylı, defterde uygulanır): Eğlence Modu\'nda bir oyunda en fazla 300 yıldız (hat + oyun sonu toplamı); Klasik\'te tavan yok.')
   L.push('- Fiyatlar: Çekiç 25, Yenile 40, Döndür 20. Ücretsiz haklar her Eğlence oyununda 1 / 1 / 2.')
   L.push('- Botlar jokeri **yalnızca sıkışınca** kullanır (Aşama 6.1 ile aynı davranış). Önce ücretsiz hak, bitince satın alınmış hak harcanır (motor kuralı).')
   L.push('- Tohumlar: temel ölçüm ve satın alma deneyleri 1…N (her deney aynı tohumlarla, fark yalnızca envanterden gelir); kariyerler `100000 + kariyer × 1000 + oyun`. Rastgele botun kendi rastgeleliği: `createRng(tohum ^ 0xa5a5a5a5)`.')

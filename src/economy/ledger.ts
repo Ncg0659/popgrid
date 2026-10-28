@@ -12,12 +12,20 @@
  *
  * Joker kullanımı idempotent sayılır: kullanılan hak sayısı olay sayılarak değil, oyunun cüzdanının
  * oyun başındaki değerle farkından hesaplanır. Aynı durum iki kez bildirilse de envanter bir kez düşer.
+ *
+ * Yıldız tavanı (Eğlence: oyun başına 300, Klasik: yok): hamle ve oyun sonu ödülü yalnızca kalan paya
+ * kadar verilir. Kazanılmış yıldız asla geri alınmaz; tavan dolunca ödüller 0 olur, oyun normal sürer.
+ *
+ * Sahiplik (şema 2): ekonomi kaydını aynı anda yalnızca TEK sekme değiştirir (src/economy/ownership.ts).
+ * İkinci sekme kaydı okuyabilir ama yazamaz; böylece iki sekmede iki oyun ve aynı satın alınmış jokerin
+ * iki yerde harcanması (K1, K2) imkânsızdır. Sahiplik denetimi depolama katmanında, her işlemde yapılır.
  */
 import { DEFAULT_FREE_JOKERS, JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameEvent, GameMode, JokerCharges, JokerKind, JokerWallet } from '../engine/types'
-import { JOKER_PRICES, starsForFinalScore, starsForMove } from './rules'
+import { JOKER_PRICES, starCapFor, starsForFinalScore, starsForMove } from './rules'
 
-export const ECONOMY_SCHEMA_VERSION = 1
+/** 1: Aşama 7.1 ilk sürüm. 2: sahiplik alanı (owner) eklendi. */
+export const ECONOMY_SCHEMA_VERSION = 2
 
 /** Taşma ve bozuk kayıtlara karşı üst sınırlar (oyun içinde ulaşılması beklenmez). */
 export const MAX_STARS = 99_999_999
@@ -75,6 +83,16 @@ export interface EconomyTotals {
   readonly gamesAbandoned: number
 }
 
+/** Kaydı değiştirme hakkı olan sekme. */
+export interface Ownership {
+  readonly tabId: string
+  /**
+   * Kiranın bittiği an (ms, Date.now). Sahip sekme her işlemde ve düzenli aralıkla yeniler; süresi
+   * geçmişse başka bir sekme sahipliği alabilir.
+   */
+  readonly until: number
+}
+
 export interface EconomyState {
   readonly schemaVersion: typeof ECONOMY_SCHEMA_VERSION
   readonly stars: number
@@ -86,6 +104,8 @@ export interface EconomyState {
   readonly totals: EconomyTotals
   /** Son işlenen satın alma istek kimlikleri (çift dokunuş koruması). */
   readonly purchaseIds: readonly string[]
+  /** Kaydı değiştirme hakkı olan sekme; null = kimse (ilk işlemden önce alınmalı). */
+  readonly owner: Ownership | null
 }
 
 export type EconomyFailure =
@@ -97,6 +117,7 @@ export type EconomyFailure =
   | 'insufficientStars'
   | 'duplicatePurchase'
   | 'inventoryFull'
+  | 'otherTab'
 
 export type EconomyResult =
   | { readonly ok: true; readonly state: EconomyState; readonly stars: number }
@@ -114,6 +135,7 @@ export function initialEconomy(inventory: JokerCharges = NO_JOKERS): EconomyStat
     funBests: { withoutPurchased: 0, withPurchased: 0 },
     totals: { earned: 0, spent: 0, gamesFinished: 0, gamesAbandoned: 0 },
     purchaseIds: [],
+    owner: null,
   }
 }
 
@@ -123,6 +145,18 @@ const validId = (id: unknown): id is string => typeof id === 'string' && id.leng
 const chargesOk = (c: JokerCharges): boolean => JOKER_KINDS.every((k) => isCount(c[k]))
 const sum = (c: JokerCharges): number => c.cekic + c.yenile + c.dondur
 const addStars = (stars: number, add: number): number => Math.min(MAX_STARS, stars + add)
+
+/** Bu oyunda tavana kadar daha kaç yıldız kazanılabilir (Klasik: sınırsız). */
+export function starsLeftThisGame(active: ActiveGame): number {
+  const cap = starCapFor(active.mode)
+  return cap === null ? Number.MAX_SAFE_INTEGER : Math.max(0, cap - active.lineStars)
+}
+
+/** Ödülü tavana ve bakiye üst sınırına göre kırpar. Asla negatif değil. */
+function grant(state: EconomyState, active: ActiveGame, wanted: number): number {
+  const capped = Math.min(Math.max(0, wanted), starsLeftThisGame(active))
+  return addStars(state.stars, capped) - state.stars
+}
 
 /**
  * Yeni oyunu etkin oyun yapar. Önceki oyun bitmeden yenisi başlarsa önceki "bırakılmış" sayılır:
@@ -171,8 +205,7 @@ export function awardMove(state: EconomyState, gameId: string, moveCount: number
   if (active.id !== gameId) return fail(state, 'wrongGame')
   if (!isCount(moveCount)) return fail(state, 'invalidInput')
   if (moveCount <= active.lastAwardedMove) return fail(state, 'staleMove')
-  const stars = starsForMove(events)
-  const added = addStars(state.stars, stars) - state.stars
+  const added = grant(state, active, starsForMove(events))
   return {
     ok: true,
     stars: added,
@@ -225,8 +258,8 @@ export function syncUsage(state: EconomyState, gameId: string, wallet: JokerWall
 }
 
 /**
- * Oyun sonu: önce son joker kullanımını işler, sonra Math.floor(skor / 100) * 5 yıldızı TEK KEZ verir
- * ve oyunu kapatır. Aynı oyun için ikinci çağrı 'noActiveGame' ya da 'wrongGame' ile reddedilir.
+ * Oyun sonu: önce son joker kullanımını işler, sonra Math.floor(skor / 100) * 5 yıldızı (Eğlence'de
+ * tavanın kalan payı kadar) TEK KEZ verir ve oyunu kapatır. Aynı oyun için ikinci çağrı 'noActiveGame' ya da 'wrongGame' ile reddedilir.
  */
 export function finishGame(state: EconomyState, gameId: string, finalScore: number, wallet: JokerWallet | null): EconomyResult {
   if (!isCount(finalScore)) return fail(state, 'invalidInput')
@@ -234,7 +267,7 @@ export function finishGame(state: EconomyState, gameId: string, finalScore: numb
   if (!synced.ok) return synced
   const s = synced.state
   const active = s.active!
-  const endStars = addStars(s.stars, starsForFinalScore(finalScore)) - s.stars
+  const endStars = grant(s, active, starsForFinalScore(finalScore))
   const usedPurchased = active.mode === 'eglence' && sum(active.usage.purchased) > 0
   const summary: FinishedGame = {
     id: active.id,

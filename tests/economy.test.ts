@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, newGame, play, type GameEvent, type GameState } from '../src/engine'
+import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, createRng, newGame, play, type GameEvent, type GameState } from '../src/engine'
 import {
+  ECONOMY_SCHEMA_VERSION,
   HISTORY_LIMIT,
   MAX_INVENTORY_PER_KIND,
   awardMove,
@@ -8,15 +9,19 @@ import {
   initialEconomy,
   purchase,
   startGame,
+  starsLeftThisGame,
   syncUsage,
   type EconomyResult,
   type EconomyState,
 } from '../src/economy/ledger'
-import { JOKER_PRICES, linesCleared, starsForFinalScore, starsForLines, starsForMove } from '../src/economy/rules'
+import { FUN_STAR_CAP, JOKER_PRICES, linesCleared, starsForFinalScore, starsForLines, starsForMove } from '../src/economy/rules'
+import { LEASE_MS } from '../src/economy/ownership'
 import { parseEconomy, serializeEconomy } from '../src/economy/schema'
-import { ECONOMY_BACKUP_KEY, ECONOMY_KEY, createEconomyStore } from '../src/storage/economy'
+import { ECONOMY_BACKUP_KEY, ECONOMY_KEY, createEconomyStore, createTabId, newGameId, type EconomyStore } from '../src/storage/economy'
+import { ECONOMY_LOCK_NAME, claimWithLock, webLocks, type LockManagerLike } from '../src/storage/economyLock'
 import { INVENTORY_KEY } from '../src/storage/inventory'
 import { greedyBot, jokerRescueAction } from '../scripts/bot'
+import { gameStars, policyById } from '../scripts/economy-policy'
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial))
@@ -42,6 +47,24 @@ function ok(r: EconomyResult | { ok: boolean; state: EconomyState }): EconomySta
 
 const cleared = (rows: number[], cols: number[] = []): GameEvent => ({ type: 'cleared', rows, cols, cells: [] })
 const rich = (stars: number): EconomyState => ({ ...initialEconomy(), stars })
+
+/** Sahte saat (sekmelerin kira süreleri için) ve sekme yardımcıları. */
+const clock = { t: 1_700_000_000_000 }
+let tabSeq = 0
+type KV = Parameters<typeof createEconomyStore>[0]
+/** Yeni sekme (sahiplik almamış). */
+const tab = (storage: KV): EconomyStore => createEconomyStore(storage, { tabId: `tab-${++tabSeq}`, now: () => clock.t })
+/** Yeni sekme ve sahiplik. */
+function owned(storage: KV): EconomyStore {
+  const store = tab(storage)
+  expect(store.claim().ok).toBe(true)
+  return store
+}
+/** Sayfa yenileme: eski sekme kapanırken sahipliği bırakır, yeni sekme alır. */
+function reload(prev: EconomyStore, storage: KV): EconomyStore {
+  prev.release()
+  return owned(storage)
+}
 
 /** Aşama 7 öncesi kayıtlar: ekonomi işlemlerinden hiçbiri bunlara dokunmamalı. */
 const OLD_KEYS: Record<string, string> = {
@@ -373,51 +396,215 @@ describe('kayıt biçimi ve uyumluluk', () => {
   })
 
   it('daha yeni sürümün kaydı okunmaz ve üzerine yazılmaz', () => {
-    const raw = JSON.stringify({ schemaVersion: 2, stars: 999, whatever: true })
+    const raw = JSON.stringify({ schemaVersion: ECONOMY_SCHEMA_VERSION + 1, stars: 999, whatever: true })
     const st = memoryStorage({ [ECONOMY_KEY]: raw })
-    const store = createEconomyStore(st)
+    const store = tab(st)
     expect(store.load().status).toBe('future')
+    expect(store.claim().ok).toBe(false)
     const r = store.startGame('g', 'klasik')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toBe('readOnly')
     expect(store.purchase('cekic', 'p').ok).toBe(false)
+    store.release()
     expect(st.data.get(ECONOMY_KEY)).toBe(raw)
     expect(st.writes).toBe(0)
+  })
+})
+
+describe('şema 1 → 2 geçişi (eski veri)', () => {
+  /** Aşama 7.1'in ilk sürümünün (şema 1) yazdığı bir kayıt: sahiplik alanı yok. */
+  const v1 = () => {
+    let s = ok(purchase(rich(130), 'yenile', 'p1'))
+    s = ok(startGame(s, 'eski-oyun', 'eglence', s.inventory))
+    s = ok(awardMove(s, 'eski-oyun', 3, [cleared([0, 1])]))
+    const { owner: _owner, ...rest } = s
+    void _owner
+    return JSON.stringify({ ...rest, schemaVersion: 1 })
+  }
+
+  it('şema 1 kaydı bütün alanlarıyla okunur, sahiplik boş gelir', () => {
+    const r = parseEconomy(v1())
+    expect(r.status).toBe('migrated')
+    expect(r.state.schemaVersion).toBe(ECONOMY_SCHEMA_VERSION)
+    expect(r.state.stars).toBe(130 - 40 + 5)
+    expect(r.state.inventory).toEqual({ cekic: 0, yenile: 1, dondur: 0 })
+    expect(r.state.active?.id).toBe('eski-oyun')
+    expect(r.state.active?.lastAwardedMove).toBe(3)
+    expect(r.state.purchaseIds).toEqual(['p1'])
+    expect(r.state.owner).toBe(null)
+  })
+
+  it('ilk işlemle kayıt şema 2 olarak yazılır; eski oyun ve envanter korunur, eski anahtarlar değişmez', () => {
+    const st = memoryStorage({ ...OLD_KEYS, [ECONOMY_KEY]: v1() })
+    const store = owned(st)
+    expect(store.awardMove('eski-oyun', 4, [cleared([0])]).ok).toBe(true)
+    const saved = JSON.parse(st.data.get(ECONOMY_KEY)!) as { schemaVersion: number; owner: { tabId: string } }
+    expect(saved.schemaVersion).toBe(2)
+    expect(saved.owner.tabId).toBe(store.tabId)
+    const back = parseEconomy(st.data.get(ECONOMY_KEY)!)
+    expect(back.status).toBe('ok')
+    expect(back.state.stars).toBe(130 - 40 + 5 + 2)
+    expect(back.state.inventory.yenile).toBe(1)
+    for (const [k, v] of Object.entries(OLD_KEYS)) expect(st.data.get(k)).toBe(v)
+  })
+
+  it('şema 2 kaydında bozuk sahiplik alanı bozuk kayıt sayılır', () => {
+    const good = JSON.parse(serializeEconomy(rich(10))) as Record<string, unknown>
+    for (const owner of [{ tabId: '' , until: 1 }, { tabId: 't', until: -1 }, { tabId: 5, until: 1 }, 'x', undefined]) {
+      expect(parseEconomy(JSON.stringify({ ...good, owner })).status).toBe('corrupt')
+    }
+    expect(parseEconomy(JSON.stringify({ ...good, owner: { tabId: 't', until: 5 } })).status).toBe('ok')
+  })
+})
+
+describe('Eğlence yıldız tavanı (300)', () => {
+  const fun = () => ok(startGame(initialEconomy(), 'f', 'eglence'))
+
+  it('hamle ödülleri 300\'de durur; son ödül kalan pay kadar verilir', () => {
+    let s = fun()
+    for (let m = 1; m <= 29; m++) s = ok(awardMove(s, 'f', m, [cleared([0, 1, 2])]))
+    expect(s.stars).toBe(290)
+    s = ok(awardMove(s, 'f', 30, [cleared([0])]))
+    expect(s.stars).toBe(292)
+    const partial = awardMove(s, 'f', 31, [cleared([0, 1, 2])])
+    expect(partial.ok && partial.stars).toBe(8)
+    s = partial.state
+    expect(s.stars).toBe(FUN_STAR_CAP)
+    expect(starsLeftThisGame(s.active!)).toBe(0)
+  })
+
+  it('tavan dolunca oyun sürer: hamleler kabul edilir (0 yıldız), çift ödül koruması çalışmaya devam eder', () => {
+    let s = fun()
+    for (let m = 1; m <= 30; m++) s = ok(awardMove(s, 'f', m, [cleared([0, 1, 2])]))
+    const after = awardMove(s, 'f', 31, [cleared([0, 1, 2])])
+    expect(after.ok && after.stars).toBe(0)
+    expect(after.state.active!.lastAwardedMove).toBe(31)
+    expect(awardMove(after.state, 'f', 31, [cleared([0])]).ok).toBe(false)
+    expect(after.state.stars).toBe(300)
+  })
+
+  it('oyun sonu ödülü kalan pay kadar; kazanılmış yıldız geri alınmaz', () => {
+    let s = fun()
+    for (let m = 1; m <= 28; m++) s = ok(awardMove(s, 'f', m, [cleared([0, 1, 2])]))
+    expect(s.stars).toBe(280)
+    const end = finishGame(s, 'f', 5_000, null)
+    expect(end.ok && end.stars).toBe(20)
+    expect(end.state.stars).toBe(300)
+    const game = end.state.history[0]!
+    expect(game.lineStars + game.endStars).toBe(300)
+    expect(game.score).toBe(5_000)
+    expect(end.state.funBests.withoutPurchased).toBe(5_000)
+  })
+
+  it('tavan, önceki bakiyeyi değil yalnızca bu oyunun kazancını sınırlar', () => {
+    let s = ok(startGame(rich(1_000), 'f', 'eglence'))
+    s = ok(awardMove(s, 'f', 1, [cleared([0])]))
+    s = ok(finishGame(s, 'f', 100_000, null))
+    expect(s.stars).toBe(1_300)
+    s = ok(startGame(s, 'f2', 'eglence'))
+    s = ok(finishGame(s, 'f2', 100_000, null))
+    expect(s.stars).toBe(1_600)
+  })
+
+  it('Klasik Mod\'da tavan yok', () => {
+    let s = ok(startGame(initialEconomy(), 'k', 'klasik'))
+    for (let m = 1; m <= 40; m++) s = ok(awardMove(s, 'k', m, [cleared([0, 1, 2])]))
+    s = ok(finishGame(s, 'k', 10_000, null))
+    expect(s.stars).toBe(400 + 500)
+  })
+
+  it('satın alınmış joker kullanan oyuncuya ek kesinti yok: aynı kazançta aynı yıldız', () => {
+    const wallet = { free: { cekic: 0, yenile: 0, dondur: 0 }, inventory: NO_JOKERS }
+    let a = ok(startGame(initialEconomy({ cekic: 2, yenile: 0, dondur: 0 }), 'buy', 'eglence', { cekic: 2, yenile: 0, dondur: 0 }, { cekic: 1, yenile: 0, dondur: 0 }))
+    let b = ok(startGame(initialEconomy(), 'free', 'eglence', NO_JOKERS, { cekic: 1, yenile: 0, dondur: 0 }))
+    for (let m = 1; m <= 10; m++) {
+      a = ok(awardMove(a, 'buy', m, [cleared([0, 1])]))
+      b = ok(awardMove(b, 'free', m, [cleared([0, 1])]))
+    }
+    a = ok(finishGame(a, 'buy', 1_234, wallet))
+    b = ok(finishGame(b, 'free', 1_234, wallet))
+    expect(a.history[0]!.usedPurchased).toBe(true)
+    expect(b.history[0]!.usedPurchased).toBe(false)
+    expect(a.stars).toBe(b.stars)
+    expect(a.stars).toBe(50 + 60)
+  })
+
+  it('gerçek oyunlar: defter = simülasyonun onaylı kuralı (Eğlence tavan 300, Klasik tavansız)', () => {
+    let reachedCap = 0
+    for (let seed = 1; seed <= 12; seed++) {
+      for (const mode of ['eglence', 'klasik'] as const) {
+        const inventory = mode === 'eglence' ? { cekic: 3, yenile: 3, dondur: 3 } : NO_JOKERS
+        let e = ok(startGame(initialEconomy(inventory), 'g', mode, inventory))
+        let state: GameState = newGame(seed, DEFAULT_CONFIG, mode === 'eglence' ? { mode, inventory } : {})
+        let line = 0
+        let usedPurchased = false
+        let lineAtPurchase = 0
+        let scoreAtPurchase = 0
+        while (!state.gameOver && state.moveCount < 2_000) {
+          if (state.stuck) {
+            const r = applyJoker(state, jokerRescueAction(state)!)
+            if (!r.ok) throw new Error(r.reason)
+            if (!usedPurchased && r.events.some((x) => x.type === 'jokerUsed' && x.source === 'inventory')) {
+              usedPurchased = true
+              lineAtPurchase = line
+              scoreAtPurchase = state.score
+            }
+            state = r.state
+            e = ok(syncUsage(e, 'g', state.jokers))
+            continue
+          }
+          const r = play(state, greedyBot(state)!)
+          if (!r.ok) throw new Error(r.reason)
+          line += starsForMove(r.events)
+          state = r.state
+          e = ok(awardMove(e, 'g', state.moveCount, r.events))
+        }
+        e = ok(finishGame(e, 'g', state.score, state.jokers))
+        const input = { lineStars: line, score: state.score, usedPurchased, lineAtPurchase: usedPurchased ? lineAtPurchase : line, scoreAtPurchase: usedPurchased ? scoreAtPurchase : state.score }
+        const expected = gameStars(policyById(mode === 'eglence' ? 'C300' : 'A'), input)
+        expect(e.stars).toBe(expected)
+        if (mode === 'eglence' && line + starsForFinalScore(state.score) > 300) reachedCap++
+      }
+    }
+    expect(reachedCap).toBeGreaterThan(0)
   })
 })
 
 describe('kalıcı kayıt (localStorage)', () => {
   it('satın alma tek yazmayla saklanır: bakiye ve envanter birlikte', () => {
     const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(60)) })
-    const store = createEconomyStore(st)
+    const store = owned(st)
+    const before = st.writes
     const r = store.purchase('dondur', 'p1')
     expect(r.ok).toBe(true)
-    expect(st.writes).toBe(1)
+    expect(st.writes - before).toBe(1)
     const saved = parseEconomy(st.data.get(ECONOMY_KEY)!).state
     expect(saved.stars).toBe(40)
     expect(saved.inventory.dondur).toBe(1)
   })
 
-  it('sayfa yenilenince (yeni depo nesnesi) bakiye, envanter ve etkin oyun korunur; çift ödül yine engellenir', () => {
+  it('sayfa yenilenince bakiye, envanter ve etkin oyun korunur; çift ödül yine engellenir', () => {
     const st = memoryStorage()
-    const a = createEconomyStore(st)
+    const a = owned(st)
     a.startGame('g', 'klasik')
     a.awardMove('g', 1, [cleared([0, 1])])
-    const b = createEconomyStore(st)
+    const b = reload(a, st)
     expect(b.load().state.stars).toBe(5)
     expect(b.awardMove('g', 1, [cleared([0, 1])]).ok).toBe(false)
     expect(b.finishGame('g', 300, null).ok).toBe(true)
-    expect(createEconomyStore(st).finishGame('g', 300, null).ok).toBe(false)
-    expect(createEconomyStore(st).load().state.stars).toBe(20)
+    const c = reload(b, st)
+    expect(c.finishGame('g', 300, null).ok).toBe(false)
+    expect(c.load().state.stars).toBe(20)
   })
 
   it('sekme oyun ortasında kapandı: kazanılan hat yıldızları kalır, yeni oyun eskisini bırakılmış sayar', () => {
     const st = memoryStorage()
-    const s = createEconomyStore(st)
+    const s = owned(st)
     s.startGame('g1', 'eglence')
     s.awardMove('g1', 1, [cleared([0])])
-    // Oyun devam kaydı yok: yeniden açılışta yeni oyun başlar.
-    const after = createEconomyStore(st)
+    // Çökme: sahiplik bırakılamadı; kira dolunca yeni sekme devralır.
+    clock.t += LEASE_MS + 1
+    const after = owned(st)
     after.startGame('g2', 'eglence')
     const state = after.load().state
     expect(state.stars).toBe(2)
@@ -425,23 +612,12 @@ describe('kalıcı kayıt (localStorage)', () => {
     expect(state.active!.id).toBe('g2')
   })
 
-  it('iki depo nesnesi (iki sekme) sırayla yazınca biri ötekinin alımını silmez', () => {
-    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(100)) })
-    const tab1 = createEconomyStore(st)
-    const tab2 = createEconomyStore(st)
-    expect(tab1.purchase('yenile', 'a').ok).toBe(true)
-    expect(tab2.purchase('yenile', 'b').ok).toBe(true)
-    expect(tab2.purchase('yenile', 'c').ok).toBe(false)
-    const final = createEconomyStore(st).load().state
-    expect(final.stars).toBe(20)
-    expect(final.inventory.yenile).toBe(2)
-  })
-
   it('bozuk kayıt yedeklenir, oyun çökmez, ilk işlemle temiz kayıt yazılır', () => {
     const st = memoryStorage({ [ECONOMY_KEY]: '{bozuk' })
-    const store = createEconomyStore(st)
+    const store = tab(st)
     expect(store.load().status).toBe('corrupt')
     expect(st.data.get(ECONOMY_BACKUP_KEY)).toBe('{bozuk')
+    expect(store.claim().ok).toBe(true)
     expect(store.startGame('g', 'klasik').ok).toBe(true)
     expect(parseEconomy(st.data.get(ECONOMY_KEY)!).status).toBe('ok')
   })
@@ -456,8 +632,9 @@ describe('kalıcı kayıt (localStorage)', () => {
       },
     }
     for (const storage of [broken, null]) {
-      const store = createEconomyStore(storage)
+      const store = tab(storage)
       expect(store.load().state.stars).toBe(0)
+      expect(store.claim().ok).toBe(true)
       const r = store.startGame('g', 'klasik')
       expect(r.ok && r.persisted).toBe(false)
       store.awardMove('g', 1, [cleared([0, 1, 2])])
@@ -466,7 +643,8 @@ describe('kalıcı kayıt (localStorage)', () => {
     }
     // Okuma çalışıyor ama yazma kota hatası veriyor.
     const full = { ...memoryStorage(), setItem: () => { throw new Error('QuotaExceededError') } }
-    const store = createEconomyStore(full)
+    const store = tab(full)
+    expect(store.claim().ok).toBe(true)
     expect(store.startGame('g', 'klasik').ok).toBe(true)
     expect(store.awardMove('g', 1, [cleared([0])]).ok).toBe(true)
     expect(store.load().state.stars).toBe(2)
@@ -475,163 +653,435 @@ describe('kalıcı kayıt (localStorage)', () => {
   it('mevcut kayıtlar (rekorlar, mod, eğitim, ses, tanıtım, eski envanter) hiç değişmez', () => {
     const legacy = JSON.stringify({ cekic: 1, yenile: 0, dondur: 0 })
     const st = memoryStorage({ ...OLD_KEYS, [INVENTORY_KEY]: legacy })
-    const store = createEconomyStore(st)
+    const store = owned(st)
     expect(store.load().state.inventory).toEqual({ cekic: 1, yenile: 0, dondur: 0 })
     store.startGame('g', 'eglence', { cekic: 1, yenile: 0, dondur: 0 })
     store.awardMove('g', 1, [cleared([0])])
     store.syncUsage('g', { free: { cekic: 1, yenile: 1, dondur: 2 }, inventory: NO_JOKERS })
     store.finishGame('g', 777, { free: { cekic: 1, yenile: 1, dondur: 2 }, inventory: NO_JOKERS })
+    store.release()
     for (const [k, v] of Object.entries(OLD_KEYS)) expect(st.data.get(k)).toBe(v)
     expect(st.data.get(INVENTORY_KEY)).toBe(legacy)
     const keys = [...st.data.keys()].filter((k) => !(k in OLD_KEYS))
     expect(keys.sort()).toEqual([ECONOMY_KEY, INVENTORY_KEY].sort())
     expect(store.load().state.stars).toBe(2 + 35)
+    expect(store.load().state.inventory.cekic).toBe(0)
   })
 })
 
-/**
- * Aşama 7.1 ek: risk senaryoları. Bu testler BUGÜNKÜ davranışı belgeler.
- * "BİLİNEN SINIRLAMA" diye işaretlenenler docs/asama-7.1-dengeleme.md'de kusur olarak raporlandı;
- * düzeltme onaylanırsa bu testler bilerek değiştirilecek.
- */
-describe('risk senaryoları', () => {
+/** Eğlence oyununda satın alınmış Çekiç'i kullanabilecek bir durum (tahtada dolu hücre var). */
+function funGameWith(inventory: { cekic: number; yenile: number; dondur: number }, seed = 5): GameState {
+  let state = newGame(seed, DEFAULT_CONFIG, { mode: 'eglence', inventory, freeJokers: { cekic: 0, yenile: 0, dondur: 0 } })
+  while (state.board.every((c) => c === 0)) {
+    const r = play(state, greedyBot(state)!)
+    if (!r.ok) throw new Error(r.reason)
+    state = r.state
+  }
+  return state
+}
+const filledCell = (g: GameState) => g.board.findIndex((c) => c !== 0)
+
+describe('K1 + K2 · tek yazıcı: ikinci sekme ekonomiyi değiştiremez', () => {
+  it('ikinci sekme okuyabilir ama yazamaz; açıklama için durumu "other"', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(100)) })
+    const a = owned(st)
+    const b = tab(st)
+    expect(b.ownership()).toBe('other')
+    expect(b.load().state.stars).toBe(100)
+    const writes = st.writes
+    for (const r of [
+      b.claim(),
+      b.startGame('gb', 'klasik'),
+      b.awardMove('gb', 1, [cleared([0])]),
+      b.purchase('yenile', 'x'),
+      b.syncUsage('gb', null),
+      b.finishGame('gb', 500, null),
+      b.heartbeat(),
+    ]) {
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('otherTab')
+    }
+    b.release()
+    expect(st.writes).toBe(writes)
+    expect(a.ownership()).toBe('mine')
+  })
+
+  it('K1: birinci sekmenin oyunu ikinci sekme açıldı diye yıldız kaybetmez', () => {
+    const st = memoryStorage()
+    const a = owned(st)
+    a.startGame('ga', 'klasik')
+    const b = tab(st)
+    expect(b.startGame('gb', 'klasik').ok).toBe(false)
+    expect(a.awardMove('ga', 1, [cleared([0])]).ok).toBe(true)
+    expect(a.finishGame('ga', 800, null).ok).toBe(true)
+    expect(b.load().state.stars).toBe(2 + 40)
+  })
+
+  it('sahip sekme kapanınca (bırakma) ikinci sekme hemen devralır', () => {
+    const st = memoryStorage()
+    const a = owned(st)
+    const b = tab(st)
+    expect(b.claim().ok).toBe(false)
+    a.release()
+    expect(b.claim().ok).toBe(true)
+    expect(b.ownership()).toBe('mine')
+    expect(a.ownership()).toBe('other')
+  })
+
+  it('kira: yenilenen sahip korunur; kirası dolan sahip devredilir ve eski sekme yazamaz', () => {
+    const st = memoryStorage()
+    const a = owned(st)
+    const b = tab(st)
+    clock.t += LEASE_MS - 1_000
+    expect(a.heartbeat().ok).toBe(true)
+    clock.t += LEASE_MS - 1_000
+    expect(b.claim().ok).toBe(false)
+    clock.t += 2_000
+    expect(b.claim().ok).toBe(true)
+    const r = a.startGame('ga', 'klasik')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('otherTab')
+  })
+
+  it('kullanıcı "bu sekmede devam et" derse sahiplik zorla alınır', () => {
+    const st = memoryStorage()
+    const a = owned(st)
+    const b = tab(st)
+    expect(b.claim().ok).toBe(false)
+    expect(b.claim(true).ok).toBe(true)
+    expect(a.ownership()).toBe('other')
+  })
+
+  it('saat geri alınmış (kira bitişi çok ileride): sahiplik boş sayılır', () => {
+    const st = memoryStorage()
+    const a = owned(st)
+    clock.t -= 10 * LEASE_MS
+    const b = tab(st)
+    expect(b.claim().ok).toBe(true)
+    expect(a.ownership()).toBe('other')
+  })
+
+  it('K2: aynı satın alınmış joker iki sekmede harcanamaz; devralınan sekmede eski oyun harcayamaz', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(ok(purchase(rich(25), 'cekic', 'p'))) })
+    const one = { cekic: 1, yenile: 0, dondur: 0 }
+    const a = owned(st)
+    expect(a.startGame('ga', 'eglence', one).ok).toBe(true)
+    const gameA = funGameWith(one)
+    // B açıldı: sahip olmadığı için oyuna satın alınmış joker getiremez, harcayamaz.
+    const b = tab(st)
+    expect(b.startGame('gb', 'eglence', one).ok).toBe(false)
+    const gameB = funGameWith(one, 6)
+    const tryB = b.useJoker('gb', gameB, { type: 'cekic', cell: filledCell(gameB) })
+    expect(tryB.ok).toBe(false)
+    if (!tryB.ok) expect(tryB.reason).toBe('otherTab')
+    // B sahipliği zorla alır; A artık satın alınmış joker harcayamaz (motor sonucu da verilmez).
+    expect(b.claim(true).ok).toBe(true)
+    const tryA = a.useJoker('ga', gameA, { type: 'cekic', cell: filledCell(gameA) })
+    expect(tryA.ok).toBe(false)
+    // B kendi oyununu başlatıp jokeri bir kez kullanır.
+    expect(b.startGame('gb', 'eglence', one).ok).toBe(true)
+    const used = b.useJoker('gb', gameB, { type: 'cekic', cell: filledCell(gameB) })
+    expect(used.ok).toBe(true)
+    expect(b.load().state.inventory.cekic).toBe(0)
+    expect(b.load().state.totals.gamesAbandoned).toBe(1)
+  })
+
+  it('sahip olmayan sekmede ücretsiz joker oyun içinde çalışır (ekonomiye dokunmaz)', () => {
+    const st = memoryStorage()
+    owned(st)
+    const b = tab(st)
+    const game = newGame(9, DEFAULT_CONFIG, { mode: 'eglence' })
+    const r = b.useJoker('gb', game, { type: 'yenile' })
+    expect(r.ok).toBe(true)
+  })
+
+  it('özellik: rastgele iki sekme akışında satın alınmış joker ne kaybolur ne çoğalır', () => {
+    const rng = createRng(2026)
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(10_000)) })
+    const tabs = [owned(st), tab(st)]
+    const games: Array<{ id: string; game: GameState } | null> = [null, null]
+    let bought = 0
+    let appliedInventoryUses = 0
+    for (let step = 0; step < 400; step++) {
+      const i = rng.nextInt(2)
+      const t = tabs[i]!
+      const roll = rng.nextInt(7)
+      if (roll === 0) t.claim(rng.nextInt(4) === 0)
+      else if (roll === 1) t.release()
+      else if (roll === 2) {
+        if (t.purchase('cekic', `r${step}`).ok) bought++
+      } else if (roll === 3) {
+        const inv = t.load().state.inventory
+        const id = `g${step}`
+        if (t.startGame(id, 'eglence', inv).ok) games[i] = { id, game: funGameWith(inv, step % 50) }
+      } else if (roll === 4 && games[i]) {
+        const g = games[i]!
+        const cell = filledCell(g.game)
+        if (cell >= 0 && !g.game.gameOver) {
+          const r = t.useJoker(g.id, g.game, { type: 'cekic', cell })
+          if (r.ok) {
+            if (r.events.some((e) => e.type === 'jokerUsed' && e.source === 'inventory')) appliedInventoryUses++
+            games[i] = { id: g.id, game: r.game }
+          }
+        }
+      } else if (roll === 5 && games[i]) {
+        t.finishGame(games[i]!.id, games[i]!.game.score, games[i]!.game.jokers)
+      } else {
+        clock.t += rng.nextInt(2) === 0 ? 1_000 : LEASE_MS + 1
+      }
+      const s = tabs[0]!.load().state
+      expect(s.inventory.cekic).toBe(bought - appliedInventoryUses)
+    }
+    expect(appliedInventoryUses).toBeGreaterThan(0)
+  })
+})
+
+describe('K3 · hamle numarası doğrulama', () => {
   const started = (id = 'g') => ok(startGame(initialEconomy(), id, 'klasik'))
 
-  describe('hamle numarası atlama', () => {
-    it('atlanan numara sorun değil; geride kalan numara reddedilir, sonrakiler kabul edilir', () => {
-      let s = ok(awardMove(started(), 'g', 1, [cleared([0])]))
-      s = ok(awardMove(s, 'g', 3, [cleared([0])]))
-      expect(awardMove(s, 'g', 2, [cleared([0])]).ok).toBe(false)
-      s = ok(awardMove(s, 'g', 4, [cleared([0])]))
-      expect(s.stars).toBe(6)
-    })
-
-    it('BİLİNEN SINIRLAMA: yanlışlıkla çok büyük numara gelirse oyunun kalanında hamle ödülü verilmez (oyun sonu ödülü yine verilir)', () => {
-      let s = ok(awardMove(started(), 'g', 1000, []))
-      expect(awardMove(s, 'g', 2, [cleared([0])]).ok).toBe(false)
-      expect(awardMove(s, 'g', 999, [cleared([0])]).ok).toBe(false)
-      s = ok(finishGame(s, 'g', 500, null))
-      expect(s.stars).toBe(25)
-    })
-  })
-
-  describe('yinelenen oyun kimliği', () => {
-    it('bitmiş oyunun kimliğiyle yeni oyun başlatılamaz (yıldız verilmez, bakiye korunur)', () => {
-      let s = ok(finishGame(ok(awardMove(started('x'), 'x', 1, [cleared([0])])), 'x', 200, null))
-      const before = s.stars
-      const again = startGame(s, 'x', 'klasik')
-      expect(again.ok).toBe(false)
-      s = again.state
-      expect(awardMove(s, 'x', 1, [cleared([0])]).ok).toBe(false)
-      expect(s.stars).toBe(before)
-    })
-
-    it('BİLİNEN SINIRLAMA: etkin oyunun kimliği yeni oyunda tekrar kullanılırsa aynı oyun sayılır; ilk hamleler ödül almaz', () => {
-      let s = ok(awardMove(started('same'), 'same', 30, [cleared([0])]))
-      s = ok(startGame(s, 'same', 'klasik'))
-      // Arayüz yeni oyunda 1'den saymaya başlar: 1…30 eski sayılır.
-      expect(awardMove(s, 'same', 1, [cleared([0])]).ok).toBe(false)
-      expect(awardMove(s, 'same', 30, [cleared([0])]).ok).toBe(false)
-      expect(awardMove(s, 'same', 31, [cleared([0])]).ok).toBe(true)
-    })
-
-    it('BİLİNEN SINIRLAMA: son 20 oyundan eski bir kimlik yeniden kabul edilir (kimlikler rastgele olmalı)', () => {
-      let s = initialEconomy()
-      for (let i = 0; i <= HISTORY_LIMIT; i++) s = ok(finishGame(ok(startGame(s, `g${i}`, 'klasik')), `g${i}`, 0, null))
-      expect(startGame(s, 'g0', 'klasik').ok).toBe(true)
-      expect(startGame(s, `g${HISTORY_LIMIT}`, 'klasik').ok).toBe(false)
-    })
-  })
-
-  describe('yarıda bırakılan oyun', () => {
-    it('bildirilmiş satın alınmış kullanım düşülmüş kalır; bırakılan oyun sonradan bitirilemez', () => {
-      let s = ok(purchase(rich(100), 'cekic', 'p'))
-      s = ok(startGame(s, 'a', 'eglence', s.inventory))
-      s = ok(syncUsage(s, 'a', { free: { cekic: 0, yenile: 1, dondur: 2 }, inventory: NO_JOKERS }))
-      s = ok(startGame(s, 'b', 'eglence', s.inventory))
-      expect(s.inventory.cekic).toBe(0)
-      expect(s.totals.gamesAbandoned).toBe(1)
-      expect(finishGame(s, 'a', 900, null).ok).toBe(false)
-    })
-
-    it('BİLİNEN SINIRLAMA: joker kullanıldı ama bildirilmeden sayfa kapandıysa satın alınmış hak düşmez', () => {
-      let s = ok(purchase(rich(100), 'cekic', 'p'))
-      s = ok(startGame(s, 'a', 'eglence', s.inventory))
-      // syncUsage çağrılamadan oyun kayboldu.
-      s = ok(startGame(s, 'b', 'eglence', s.inventory))
-      expect(s.inventory.cekic).toBe(1)
-    })
-  })
-
-  describe('satın alma sırasında sekme yenileme', () => {
-    it('yazma olmadan yenilendi: ne yıldız düşer ne joker eklenir', () => {
-      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
-      // Satın alma çağrısı yazmaya ulaşmadan sayfa kapandı → depoda hiçbir şey değişmedi.
-      const reloaded = createEconomyStore(st).load().state
-      expect(reloaded.stars).toBe(50)
-      expect(reloaded.inventory.cekic).toBe(0)
-    })
-
-    it('yazmadan sonra yenilendi: ikisi birlikte kalıcı; aynı istek yeniden gönderilirse ikinci kez alınmaz', () => {
-      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
-      expect(createEconomyStore(st).purchase('cekic', 'tap-7').ok).toBe(true)
-      const after = createEconomyStore(st)
-      expect(after.load().state.stars).toBe(25)
-      expect(after.load().state.inventory.cekic).toBe(1)
-      const again = after.purchase('cekic', 'tap-7')
-      expect(again.ok).toBe(false)
-      if (!again.ok) expect(again.reason).toBe('duplicatePurchase')
-      expect(createEconomyStore(st).load().state.stars).toBe(25)
-    })
-
-    it('yazma başarısız (kota): alım yalnızca bellekte; yenilemede ikisi birlikte geri döner, yarım kalmaz', () => {
-      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
-      const failing = { getItem: st.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
-      const r = createEconomyStore(failing).purchase('yenile', 'p')
-      expect(r.ok && r.persisted).toBe(false)
-      const reloaded = createEconomyStore(st).load().state
-      expect(reloaded.stars).toBe(50)
-      expect(reloaded.inventory.yenile).toBe(0)
-    })
-  })
-
-  describe('iki sekme', () => {
-    it('sırayla yapılan işlemler birbirini silmez: bir sekmenin kazancı ötekinin alımıyla kaybolmaz', () => {
-      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(40)) })
-      const a = createEconomyStore(st)
-      const b = createEconomyStore(st)
-      a.startGame('ga', 'klasik')
-      a.awardMove('ga', 1, [cleared([0, 1, 2])])
-      expect(b.purchase('yenile', 'x').ok).toBe(true)
-      a.awardMove('ga', 2, [cleared([0])])
-      const s = createEconomyStore(st).load().state
-      expect(s.stars).toBe(40 + 10 - 40 + 2)
-      expect(s.inventory.yenile).toBe(1)
-    })
-
-    it('BİLİNEN SINIRLAMA: ikinci sekmede yeni oyun açılınca birinci sekmenin oyunu yıldız kazanamaz', () => {
-      const st = memoryStorage()
-      const a = createEconomyStore(st)
-      const b = createEconomyStore(st)
-      a.startGame('ga', 'klasik')
-      b.startGame('gb', 'klasik')
-      const r = a.awardMove('ga', 1, [cleared([0])])
+  it('sıradaki numara kabul; aynı ya da eski numara reddedilir', () => {
+    let s = ok(awardMove(started(), 'g', 1, [cleared([0])]))
+    for (const n of [1, 0]) {
+      const r = awardMove(s, 'g', n, [cleared([0])])
       expect(r.ok).toBe(false)
-      if (!r.ok) expect(r.reason).toBe('wrongGame')
-      expect(a.finishGame('ga', 800, null).ok).toBe(false)
-    })
+      if (!r.ok) expect(r.reason).toBe('staleMove')
+    }
+    s = ok(awardMove(s, 'g', 2, [cleared([0])]))
+    expect(s.stars).toBe(4)
+  })
 
-    it('BİLİNEN SINIRLAMA: aynı satın alınmış joker iki sekmede birden kullanılabilir (envanter bir kez düşer)', () => {
-      const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(ok(purchase(rich(25), 'cekic', 'p'))) })
-      const a = createEconomyStore(st)
-      const b = createEconomyStore(st)
-      const one = { cekic: 1, yenile: 0, dondur: 0 }
-      a.startGame('ga', 'eglence', one)
-      b.startGame('gb', 'eglence', one)
-      const spent = { free: { cekic: 0, yenile: 1, dondur: 2 }, inventory: NO_JOKERS }
-      expect(b.syncUsage('gb', spent).ok).toBe(true)
-      expect(a.syncUsage('ga', spent).ok).toBe(false)
-      expect(createEconomyStore(st).load().state.inventory.cekic).toBe(0)
-    })
+  it('geçersiz numaralar (negatif, ondalık, NaN, sonsuz, metin) reddedilir ve durumu değiştirmez', () => {
+    const s = started()
+    for (const n of [-1, 1.5, Number.NaN, Infinity, '2' as unknown as number]) {
+      const r = awardMove(s, 'g', n, [cleared([0])])
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('invalidInput')
+      expect(r.state).toBe(s)
+    }
+  })
+
+  it('atlanan numara çift ödül yaratmaz: atlanan hamle sonradan gelirse reddedilir', () => {
+    let s = ok(awardMove(started(), 'g', 1, [cleared([0])]))
+    s = ok(awardMove(s, 'g', 3, [cleared([0])]))
+    expect(awardMove(s, 'g', 2, [cleared([0])]).ok).toBe(false)
+    s = ok(awardMove(s, 'g', 4, [cleared([0])]))
+    expect(s.stars).toBe(6)
+  })
+
+  it('BİLİNEN SINIRLAMA (yalnızca ham awardMove): çok büyük yanlış numara oyunun kalan hamle ödüllerini kapatır; oyun sonu ödülü verilir', () => {
+    let s = ok(awardMove(started(), 'g', 1000, []))
+    expect(awardMove(s, 'g', 2, [cleared([0])]).ok).toBe(false)
+    s = ok(finishGame(s, 'g', 500, null))
+    expect(s.stars).toBe(25)
+  })
+
+  it('recordMove numarayı motordan alır: gerçek oyunda her hamle tam bir kez ödüllenir', () => {
+    const st = memoryStorage()
+    const store = owned(st)
+    store.startGame('g', 'klasik')
+    let state: GameState = newGame(21)
+    let expected = 0
+    while (!state.gameOver && state.moveCount < 300) {
+      const r = play(state, greedyBot(state)!)
+      if (!r.ok) throw new Error(r.reason)
+      expected += starsForMove(r.events)
+      expect(store.recordMove('g', r.state, r.events).ok).toBe(true)
+      // Aynı sonuç ikinci kez bildirilirse (çift olay) reddedilir.
+      expect(store.recordMove('g', r.state, r.events).ok).toBe(false)
+      state = r.state
+    }
+    expect(store.load().state.stars).toBe(expected)
+    expect(store.load().state.active!.lastAwardedMove).toBe(state.moveCount)
+  })
+})
+
+describe('K4 · oyun kimliği', () => {
+  it('kimlikler rastgele ve benzersiz; tohumdan türetilmez', () => {
+    const ids = new Set(Array.from({ length: 5_000 }, () => newGameId()))
+    expect(ids.size).toBe(5_000)
+    for (const id of [...ids].slice(0, 20)) {
+      expect(id.startsWith('g-')).toBe(true)
+      expect(id.length).toBeLessThanOrEqual(64)
+    }
+    expect(createTabId().startsWith('t-')).toBe(true)
+  })
+
+  it('aynı tohumla iki oyun: yeni kimlikle ikinci oyun da baştan ödül alır', () => {
+    const st = memoryStorage()
+    const store = owned(st)
+    for (let round = 0; round < 2; round++) {
+      const id = newGameId()
+      expect(store.startGame(id, 'klasik').ok).toBe(true)
+      let state: GameState = newGame(4)
+      let expected = store.load().state.stars
+      for (let i = 0; i < 25 && !state.gameOver; i++) {
+        const r = play(state, greedyBot(state)!)
+        if (!r.ok) throw new Error(r.reason)
+        expected += starsForMove(r.events)
+        expect(store.recordMove(id, r.state, r.events).ok).toBe(true)
+        state = r.state
+      }
+      expect(store.load().state.stars).toBe(expected)
+    }
+  })
+
+  it('bitmiş oyunun kimliğiyle yeni oyun başlatılamaz; aynı kimlikle çift başlatma etkisizdir', () => {
+    let s = ok(finishGame(ok(awardMove(ok(startGame(initialEconomy(), 'x', 'klasik')), 'x', 1, [cleared([0])])), 'x', 200, null))
+    const again = startGame(s, 'x', 'klasik')
+    expect(again.ok).toBe(false)
+    s = ok(startGame(s, 'y', 'klasik'))
+    expect(startGame(s, 'y', 'klasik').state).toBe(s)
+  })
+})
+
+describe('K5 · joker kullanımı ve envanter aynı anda', () => {
+  const one = { cekic: 1, yenile: 0, dondur: 0 }
+  const setup = () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(ok(purchase(rich(25), 'cekic', 'p'))) })
+    const store = owned(st)
+    store.startGame('g', 'eglence', one)
+    return { st, store, game: funGameWith(one) }
+  }
+
+  it('satın alınmış Çekiç: motor sonucu ve envanter düşümü aynı çağrıda; yenilemeden sonra da düşük kalır', () => {
+    const { st, store, game } = setup()
+    const r = store.useJoker('g', game, { type: 'cekic', cell: filledCell(game) })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.game.jokers!.inventory.cekic).toBe(0)
+    expect(r.economy.inventory.cekic).toBe(0)
+    // Sayfa hemen kapandı: kayıt zaten yazılmıştı.
+    const after = reload(store, st)
+    expect(after.load().state.inventory.cekic).toBe(0)
+    expect(after.load().state.active!.usage.purchased.cekic).toBe(1)
+  })
+
+  it('kayıt yazılamıyorsa satın alınmış joker uygulanmaz (çoğalma yok), envanter aynen kalır', () => {
+    const { st, game } = setup()
+    const failing = { getItem: st.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
+    const store = tab(failing)
+    // Sahiplik bellekte alınır ama kalıcı değil.
+    expect(store.claim(true).ok).toBe(true)
+    const r = store.useJoker('g', game, { type: 'cekic', cell: filledCell(game) })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('storageError')
+    expect(store.load().state.inventory.cekic).toBe(1)
+    expect(parseEconomy(st.data.get(ECONOMY_KEY)!).state.inventory.cekic).toBe(1)
+  })
+
+  it('başka oyunun kimliğiyle satın alınmış joker harcanamaz', () => {
+    const { store, game } = setup()
+    const r = store.useJoker('baska', game, { type: 'cekic', cell: filledCell(game) })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('wrongGame')
+    expect(store.load().state.inventory.cekic).toBe(1)
+  })
+
+  it('geçersiz joker (boş hücre) hiçbir şeyi değiştirmez', () => {
+    const { store, game } = setup()
+    const empty = game.board.findIndex((c) => c === 0)
+    const r = store.useJoker('g', game, { type: 'cekic', cell: empty })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('jokerInvalid')
+    expect(store.load().state.inventory.cekic).toBe(1)
+  })
+
+  it('bırakılan oyun: kullanılmayan satın alınmış jokerler envanterde kalır (kaybolmaz)', () => {
+    const { st, store } = setup()
+    clock.t += LEASE_MS + 1
+    const next = owned(st)
+    expect(next.startGame('g2', 'eglence', one).ok).toBe(true)
+    expect(next.load().state.inventory.cekic).toBe(1)
+    void store
+  })
+})
+
+describe('K6 · satın alma sırasında sekme yenileme', () => {
+  it('yazma olmadan yenilendi: ne yıldız düşer ne joker eklenir', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
+    const reloaded = tab(st).load().state
+    expect(reloaded.stars).toBe(50)
+    expect(reloaded.inventory.cekic).toBe(0)
+  })
+
+  it('yazmadan sonra yenilendi: ikisi birlikte kalıcı; aynı istek yeniden gönderilirse ikinci kez alınmaz', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
+    const first = owned(st)
+    expect(first.purchase('cekic', 'tap-7').ok).toBe(true)
+    const after = reload(first, st)
+    expect(after.load().state.stars).toBe(25)
+    expect(after.load().state.inventory.cekic).toBe(1)
+    const again = after.purchase('cekic', 'tap-7')
+    expect(again.ok).toBe(false)
+    if (!again.ok) expect(again.reason).toBe('duplicatePurchase')
+    expect(after.load().state.stars).toBe(25)
+  })
+
+  it('yazma başarısız (kota): alım yalnızca bellekte; yenilemede ikisi birlikte geri döner, yarım kalmaz', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(50)) })
+    const failing = { getItem: st.getItem, setItem: () => { throw new Error('QuotaExceededError') } }
+    const store = tab(failing)
+    store.claim()
+    const r = store.purchase('yenile', 'p')
+    expect(r.ok && r.persisted).toBe(false)
+    const reloaded = tab(st).load().state
+    expect(reloaded.stars).toBe(50)
+    expect(reloaded.inventory.yenile).toBe(0)
+  })
+})
+
+describe('K7 · eşzamanlı sahiplik alma', () => {
+  it('Web Locks varsa sahiplik alma kilit içinde ve sırayla yapılır', async () => {
+    const st = memoryStorage()
+    const order: string[] = []
+    let chain: Promise<unknown> = Promise.resolve()
+    const locks: LockManagerLike = {
+      request<T>(name: string, _o: { mode: 'exclusive' }, cb: () => T | Promise<T>): Promise<T> {
+        const run = chain.then(async () => {
+          order.push(`al:${name}`)
+          const v = await cb()
+          order.push('bırak')
+          return v
+        })
+        chain = run
+        return run
+      },
+    }
+    const a = tab(st)
+    const b = tab(st)
+    const [ra, rb] = await Promise.all([claimWithLock(a, false, locks), claimWithLock(b, false, locks)])
+    expect(ra.ok).toBe(true)
+    expect(ra.locked).toBe(true)
+    expect(rb.ok).toBe(false)
+    expect(order).toEqual([`al:${ECONOMY_LOCK_NAME}`, 'bırak', `al:${ECONOMY_LOCK_NAME}`, 'bırak'])
+  })
+
+  it('Web Locks yoksa kilitsiz alır (desteklenmeyen tarayıcı)', async () => {
+    const st = memoryStorage()
+    const r = await claimWithLock(tab(st), false, null)
+    expect(r.ok).toBe(true)
+    expect(r.locked).toBe(false)
+    expect(webLocks()).toBe(null)
+  })
+
+  it('kilitsiz en kötü durum: iki sekme aynı anda alırsa sahiplik birinde kalır, öteki yazamaz, veri kaybolmaz', () => {
+    const st = memoryStorage({ [ECONOMY_KEY]: serializeEconomy(rich(70)) })
+    // B, A'nın almasından önceki kaydı okumuş gibi (aynı milisaniye): bayat okuma.
+    const stale = st.data.get(ECONOMY_KEY)!
+    const a = owned(st)
+    let first = true
+    const staleView = {
+      getItem: (k: string) => (k === ECONOMY_KEY && first ? ((first = false), stale) : st.getItem(k)),
+      setItem: st.setItem,
+    }
+    const b = createEconomyStore(staleView, { tabId: 'tab-b', now: () => clock.t })
+    expect(b.claim().ok).toBe(true)
+    const r = a.purchase('yenile', 'x')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('otherTab')
+    const s = b.load().state
+    expect(s.stars).toBe(70)
+    expect(s.inventory.yenile).toBe(0)
+    expect(b.purchase('yenile', 'y').ok).toBe(true)
   })
 })
