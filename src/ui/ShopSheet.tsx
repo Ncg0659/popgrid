@@ -12,6 +12,9 @@ interface Props {
   persistent: boolean
   /** Tek dokunuşla satın alır; sonuç mesajını döndürür (başarılıysa ok: true). */
   onBuy(kind: JokerKind): { ok: boolean; text: string }
+  /** Başka sekme sahipse: "Bu sekmede devam et" (sahipliği bu sekmeye al). */
+  canTakeOver: boolean
+  onTakeOver(): void
   onClose(): void
   returnFocus?: () => HTMLElement | null
 }
@@ -20,7 +23,7 @@ interface Props {
  * Yıldız Mağazası: ekranın altından açılan panel. Oyunun üstünde açılır; tahta, parçalar ve skor değişmez.
  * Satın alınan jokerler kalıcı envantere eklenir ve bir sonraki Eğlence oyununda hazır olur.
  */
-export function ShopSheet({ state, status, persistent, onBuy, onClose, returnFocus }: Props) {
+export function ShopSheet({ state, status, persistent, onBuy, canTakeOver, onTakeOver, onClose, returnFocus }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const dialog = useDialog<HTMLDivElement>(onClose, closeRef, returnFocus)
   const [toast, setToast] = useState<{ id: number; text: string; ok: boolean } | null>(null)
@@ -65,9 +68,14 @@ export function ShopSheet({ state, status, persistent, onBuy, onClose, returnFoc
             </span>
           </p>
           {blocked && (
-            <p className="shop-blocked" role="note">
-              {blocked}
-            </p>
+            <div className="shop-blocked" role="note">
+              <p>{blocked}</p>
+              {canTakeOver && (
+                <button type="button" className="btn-soft wide eco-takeover" onClick={onTakeOver}>
+                  Bu sekmede devam et
+                </button>
+              )}
+            </div>
           )}
           <ul className="shop-list">
             {items.map((item) => (

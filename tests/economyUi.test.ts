@@ -7,6 +7,7 @@ import {
   createPurchaseGuard,
   economyBanner,
   finishedGameStars,
+  fmtStarsShort,
   purchaseMessage,
   reachedCapNow,
   shopBlockedReason,
@@ -136,5 +137,20 @@ describe('sahiplik ve kayıt uyarısı', () => {
     expect(economyBanner('mine', false)!.text).toContain('Kayıt yapılamıyor')
     expect(economyBanner('readonly', true)!.canTakeOver).toBe(false)
     expect(economyBanner('mine', true)).toBe(null)
+  })
+})
+
+describe('kısa yıldız yazımı (dar düğme)', () => {
+  it('9.999\'a kadar tam, sonra bin ve milyon kısaltması (yuvarlamadan, aşağı)', () => {
+    expect([0, 7, 1234, 9999, 10_000, 12_345, 999_999, 1_250_000].map(fmtStarsShort)).toEqual([
+      '0',
+      '7',
+      '1.234',
+      '9.999',
+      '10B',
+      '12,3B',
+      '999,9B',
+      '1,2Mn',
+    ])
   })
 })

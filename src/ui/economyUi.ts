@@ -11,6 +11,14 @@ import { JOKER_NAMES } from './jokerUi'
 
 export const fmtStars = (n: number): string => n.toLocaleString('tr-TR')
 
+/** Dar düğmeler için kısa yazım: 9.999'a kadar tam, sonra 12,3B (bin) ve 1,2Mn. Tam sayı etikette ve mağazada. */
+export function fmtStarsShort(n: number): string {
+  if (n < 10_000) return fmtStars(n)
+  const one = (x: number) => (Math.floor(x * 10) / 10).toLocaleString('tr-TR', { maximumFractionDigits: 1 })
+  if (n < 1_000_000) return `${one(n / 1_000)}B`
+  return `${one(n / 1_000_000)}Mn`
+}
+
 /** Mağazadaki açıklamalar (Aşama 6.4 tanıtımıyla aynı dil). */
 export const JOKER_DESCRIPTIONS: Readonly<Record<JokerKind, string>> = {
   cekic: 'Bir dolu bloğu siler.',

@@ -17,7 +17,8 @@ import { jokerButtons, rotatableSlots } from './ui/jokerUi'
 import { ModeSheet } from './ui/ModeSheet'
 import { economyBanner, purchaseMessage, createPurchaseGuard } from './ui/economyUi'
 import { ShopSheet } from './ui/ShopSheet'
-import { StarDock } from './ui/StarDock'
+import { StarButton } from './ui/StarButton'
+import { StarToast } from './ui/StarToast'
 import { useEconomy } from './ui/useEconomy'
 import { randomId } from './storage/economy'
 import type { JokerKind } from './engine/types'
@@ -117,6 +118,7 @@ export default function App() {
   }
 
   const banner = economyBanner(eco.status, eco.persistent)
+  const starButton = <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} />
 
   const startMode = (mode: 'klasik' | 'eglence') => {
     g.startGame(mode)
@@ -183,33 +185,33 @@ export default function App() {
         jokerFx={jokerFx}
         reducedMotion={reducedMotion}
       />
-      {fun ? (
-        <>
-          <JokerBar
-            buttons={jokerButtons(game)}
-            armed={armed}
-            message={g.notice?.text ?? null}
-            onArm={g.arm}
-            onRefresh={g.refresh}
-            onDisarm={g.disarm}
-          />
-          {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
-          <p className="hint sr-only" aria-live="polite">
-            {armed ? '' : (g.notice?.text ?? hint)}
-          </p>
-        </>
-      ) : (
-        <p className="hint" aria-live="polite">
-          {hint}
-        </p>
-      )}
-      <StarDock
-        stars={eco.state.stars}
-        onOpenShop={() => setOverlay('shop')}
-        notice={g.starNotice}
-        banner={banner}
-        onTakeOver={eco.takeOver}
-      />
+      <div className="bottom-zone">
+        <StarToast notice={g.starNotice} banner={banner} />
+        {fun ? (
+          <>
+            <JokerBar
+              buttons={jokerButtons(game)}
+              armed={armed}
+              message={g.notice?.text ?? null}
+              onArm={g.arm}
+              onRefresh={g.refresh}
+              onDisarm={g.disarm}
+              trailing={starButton}
+            />
+            {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
+            <p className="hint sr-only" aria-live="polite">
+              {armed ? '' : (g.notice?.text ?? hint)}
+            </p>
+          </>
+        ) : (
+          <div className="hint-row">
+            <p className="hint" aria-live="polite">
+              {hint}
+            </p>
+            {starButton}
+          </div>
+        )}
+      </div>
       <FxCanvas effect={effect} boardRef={boardRef} reducedMotion={reducedMotion} jokerFx={jokerFx} />
       {drag && (
         <div ref={floatRef} className="drag-float" aria-hidden="true">
@@ -263,6 +265,8 @@ export default function App() {
         status={eco.status}
         persistent={eco.persistent}
         onBuy={buy}
+        canTakeOver={banner?.canTakeOver ?? false}
+        onTakeOver={eco.takeOver}
         onClose={() => setOverlay('none')}
         returnFocus={shopButton}
       />

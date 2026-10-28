@@ -26,8 +26,8 @@
   --font: 'Baloo 2 Variable', 'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif;
 
   /* Tahta ölçüleri: ekran genişliğine ve yüksekliğine sığar, kaydırma gerekmez. */
-  /* Aşama 7.2: alttaki yıldız rafı için 54px (44px raf + 10px boşluk) ayrılır: 268px → 322px. */
-  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 322px)));
+  /* Aşama 7.2: Klasik'te ipucu satırı yıldız düğmesini de taşır (21px → 44px): 268px → 291px. */
+  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 291px)));
   --pad: calc(var(--board) * 0.032);
   --gap: calc(var(--board) * 0.009);
   --frame: calc(var(--board) * 0.02);
@@ -1303,10 +1303,11 @@ button {
 }
 
 /* Eğlence: joker çubuğu (52px) ipucu satırının (~21px) yerini alır. Tahta yalnızca ekran yüksekliği
- * yetmediğinde ve yalnızca bu fark kadar küçülür (322px → 353px ayrılır, yıldız rafı dahil); genişliğe göre ölçülen
+ * yetmediğinde ve yalnızca bu fark kadar küçülür (268px → 299px ayrılır; Aşama 7.2'de yıldız düğmesi çubuğun içinde,
+ * ek yer kaplamaz); genişliğe göre ölçülen
  * ekranlarda (375px ve üstü telefonlar) tahta Klasik ile aynı boyuttadır. */
 .game[data-mode='eglence'] {
-  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 353px)));
+  --board: max(240px, min(calc(100vw - 32px), 480px, calc(100dvh - 299px)));
   --pad: calc(var(--board) * 0.032);
   --gap: calc(var(--board) * 0.009);
   --frame: calc(var(--board) * 0.02);
@@ -2020,51 +2021,80 @@ button {
   filter: drop-shadow(0 1.5px 0 rgba(170, 110, 0, 0.35));
 }
 
-.star-dock {
+/* Alt bölüm: Klasik'te ipucu + yıldız düğmesi, Eğlence'de joker çubuğu (+ yıldız düğmesi). */
+.bottom-zone {
   position: relative;
   width: var(--board);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hint-row {
+  width: 100%;
   min-height: 44px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.hint-row .hint {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.2;
 }
 
 .star-btn {
+  position: relative;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 5px;
+  min-width: 64px;
   min-height: 44px;
-  padding: 0 6px 0 12px;
+  padding: 0 12px 0 10px;
   border: 0;
   border-radius: 999px;
   background: var(--sticker);
   box-shadow: 0 3px 0 var(--lilac);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
+  color: var(--ink);
   cursor: pointer;
-}
-
-.star-dock[data-warn] .star-btn {
-  padding-right: 14px;
+  touch-action: manipulation;
 }
 
 .star-btn:active {
   transform: translateY(2px);
 }
 
-.star-count {
-  display: inline-block;
-  min-width: 1ch;
+.joker-bar .star-btn {
+  height: 52px;
+  border-radius: 18px;
+  box-shadow: 0 4px 0 var(--lilac), 0 8px 14px rgba(90, 60, 170, 0.14);
 }
 
-.star-shop {
-  padding: 5px 12px;
+.star-count {
+  display: inline-block;
+}
+
+.star-warn {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--sticker);
   border-radius: 999px;
-  background: var(--c1);
+  background: var(--c2);
   color: #fff;
-  font-size: 15px;
-  box-shadow: inset 0 -3px 0 rgba(0, 80, 100, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .fx-star {
@@ -2083,6 +2113,26 @@ button {
   }
 }
 
+/* Joker çubuğunda yıldız düğmesi varken üç joker düğmesi simge + hak rozeti olarak kalır (dokunma alanı aynı). */
+.joker-bar[data-trailing] {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+
+.joker-bar[data-trailing] .joker-btn {
+  grid-template-columns: 34px;
+  justify-content: center;
+  padding: 0;
+}
+
+.joker-bar[data-trailing] .joker-btn .jk-chip {
+  width: 34px;
+  height: 34px;
+}
+
+.joker-bar[data-trailing] .jk-name {
+  display: none;
+}
+
 .star-toast {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -2097,10 +2147,20 @@ button {
   box-shadow: 0 3px 0 var(--lilac), 0 8px 18px rgba(90, 60, 170, 0.18);
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.3;
   text-align: center;
   pointer-events: none;
   transform: translateX(-50%);
+  opacity: 0;
+}
+
+.star-toast[data-shown] {
+  opacity: 1;
   animation: toast-in 200ms ease-out;
+}
+
+.star-toast[data-warn] {
+  border: 2px solid var(--c2);
 }
 
 @keyframes toast-in {
@@ -2114,30 +2174,7 @@ button {
   }
 }
 
-.eco-note {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.eco-note p {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--ink-soft);
-}
-
-.eco-takeover {
-  min-height: 44px;
-  padding: 0 12px;
-  font-size: 15px;
-}
-
+.shop-blocked 
 /* Mağaza: ekranın altından açılan panel */
 .overlay.shop-overlay {
   place-items: end center;
@@ -2208,7 +2245,14 @@ button {
   font-weight: 800;
 }
 
+.shop-blocked p {
+  margin: 0;
+}
+
 .shop-blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 0 10px;
   padding: 10px 12px;
   border-radius: 14px;
@@ -2375,11 +2419,7 @@ button {
     font-size: 16px;
   }
 
-  .star-shop {
-    padding: 4px 9px;
-    font-size: 14px;
-  }
-
+  
   .shop-item {
     grid-template-columns: 40px 1fr auto;
     gap: 10px;
@@ -2402,5 +2442,11 @@ button {
   .star-toast,
   .shop-toast[data-shown] {
     animation: none !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .sheet.shop h2 {
+    font-size: 21px;
   }
 }

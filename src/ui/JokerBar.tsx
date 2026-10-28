@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { JokerKind } from '../engine/types'
 import { JokerIcon } from './JokerIcon'
 import { JOKER_NAMES, jokerLabel, type ArmedJoker, type JokerButton } from './jokerUi'
@@ -10,6 +11,8 @@ interface Props {
   onArm(kind: 'cekic' | 'dondur'): void
   onRefresh(): void
   onDisarm(): void
+  /** Çubuğun son hücresi (Aşama 7.2: yıldız düğmesi). Joker seçiliyken gizlenir. */
+  trailing?: ReactNode
 }
 
 const INSTRUCTION: Record<'cekic' | 'dondur', string> = {
@@ -25,7 +28,7 @@ export const FREE_ROTATION_TEXT = 'Ücretsiz: aynı parçaya dokun.'
  * Hedef bekleyen joker seçilince çubuk aynı yükseklikte bir yönerge + Vazgeç/Tamam satırına dönüşür.
  * Düğmeler yalnızca onClick kullanır: iOS'ta bir dokunuş tek click üretir (pointerup + click çift sayılmaz).
  */
-export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm }: Props) {
+export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm, trailing }: Props) {
   if (armed) {
     const current = buttons.find((b) => b.kind === armed)
     const count = current?.count ?? 0
@@ -55,7 +58,7 @@ export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm }
     )
   }
   return (
-    <div className="joker-bar" role="group" aria-label="Jokerler">
+    <div className="joker-bar" role="group" aria-label="Jokerler" data-trailing={trailing ? '' : undefined}>
       {buttons.map((b) => (
         <button
           key={b.kind}
@@ -78,6 +81,7 @@ export function JokerBar({ buttons, armed, message, onArm, onRefresh, onDisarm }
           </span>
         </button>
       ))}
+      {trailing}
     </div>
   )
 }
