@@ -130,3 +130,12 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - **İlk eğitim (4 kart):** Parçayı yerleştir → Hatları temizle → Yıldız kazan → Modunu tanı. Mevcut `Tutorial` bileşeni ve sahne yapısı kullanılır; yeni sahneler (`stars`, `modes`) durağandır. Eğitim yalnızca bir kaplama: tahta, skor, yıldız ve joker haklarına dokunmaz, joker kullanmaz.
 - **Kime kendiliğinden açılır:** `tutorialStore.shouldAutoShow` — eğitim görülmemiş, bu modda rekor 0 ve `hasPriorUse` yanlış (hiçbir Klasik/Eğlence rekoru, görülmüş joker tanıtımı, yıldız/biten oyun/satın alma kaydı yok). Açılışta oluşan boş yıldız kaydı iz sayılmaz; bozuk kayıt "oynamış" sayılır. Kontrol hiçbir kaydı değiştirmez.
 - **Sıra:** yeni oyuncu Eğlence'de açarsa önce eğitim, kapanınca joker tanıtımı gelir (hiçbir zaman üst üste değil). İkisi de "Nasıl Oynanır?" ekranından tekrar açılır.
+
+## Dinamik Atmosfer
+
+- **Tek yapılandırma:** `src/theme/atmosphere.ts` (`ATMOSPHERE_LEVELS`: eşik + dört renk durağı, `ATMOSPHERE_FADE_MS`). Seviye `atmosphereIndex(score)` ile YALNIZCA bu oyunun puanından hesaplanır; rekor ve yıldız bakiyesi etkilemez. Saf modül.
+- **Seviyeler:** Sakin 0–999 (mevcut arka plan, birebir) · Isınıyor 1.000+ (şeftali/mercan) · Yüksek enerji 2.500+ (pembe/turuncu) · Zirve 5.000+ (mor/mercan). Renkler pastel; ikincil yazı rengi her durakta en az 4,5:1 kontrast verir (`tests/atmosphere.test.ts`).
+- **Çizim:** `src/theme/AtmosphereBackdrop.tsx`. `.game`'in kendi arka planı "Sakin"dir; üst seviyeler `.game` içinde `z-index: -1` ile serilen katmanlardır (`.game { isolation: isolate }`: arka planın üstünde, içeriğin altında). Geçiş yalnızca katman opaklığıdır (CSS, ~1 sn); gradient canlandırılmaz, JavaScript döngüsü yoktur. Bileşen `memo`'dur: yalnızca seviye değişince yeniden çizilir.
+- **Sakin'de katman yok:** katmanların yalnızca varlığı bile tarayıcının köşe yumuşatmasını değiştirdiği için ilk eşiğe kadar sayfaya hiç eklenmez (ekran main ile piksel piksel aynı). Eşikte eklenir ve belirir; yeni oyunda solar, geçiş bitince (`transitionend`) kaldırılır.
+- **Hareketi Azalt:** renk anında değişir (geçiş yok).
+- **Değişmeyenler:** tahta, tepsi, bloklar, jokerler, düğmeler, yazılar ve pencereler; motor, puanlama, ekonomi ve kayıtlar. Oyun yenilemede kaydedilmediği için sayfa her açılışta Sakin ile başlar.

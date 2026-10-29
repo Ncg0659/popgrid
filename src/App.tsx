@@ -28,6 +28,8 @@ import { PieceView } from './ui/PieceView'
 import { StuckNotice } from './ui/StuckNotice'
 import { Tray } from './ui/Tray'
 import { useGame } from './ui/useGame'
+import { AtmosphereBackdrop } from './theme/AtmosphereBackdrop'
+import { atmosphereIndex } from './theme/atmosphere'
 
 export default function App() {
   // Ekonomi (yıldız, mağaza, sekme sahipliği) oyundan ÖNCE kurulur: ilk oyun sahipliğe göre başlar.
@@ -148,6 +150,8 @@ export default function App() {
       // Ses motoru belge düzeyindeki dokunma/tıklama olaylarıyla açılır (src/audio/sound.ts).
       onPointerDownCapture={(e) => (lastPointer.current = e.pointerType)}
     >
+      {/* Dinamik Atmosfer: yalnızca bu oyunun puanına göre arka plan (src/theme/atmosphere.ts). */}
+      <AtmosphereBackdrop level={atmosphereIndex(game.score)} instant={reducedMotion} />
       <div className="hud-zone">
         <Hud
           score={game.score}
