@@ -123,3 +123,10 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - **Oyun sonu:** "+N yıldız" 150 ms bekleme sonrası 300 ms'de sayılır; son değer defterdeki oyun özetidir.
 - **Hareketi azalt:** hareket yok, bilgi kaybolmaz (çip yerinde belirip solar, sayılar tek adımda, ✓ sabit).
 - **Efekt tahta ölçüsü:** `src/fx/boardGeometry.ts` (`cellCenter`) yalnızca efekt katmanında; sürükle-bırak ve tahta çizimi kendi ölçülerini kullanır.
+
+## Nasıl Oynanır? ve ilk eğitim (Aşama 7.4)
+
+- **Tek içerik kaynağı:** `src/help/content.ts`. Yeni bölümler: Oyun modları, Yıldızlar, Yıldız Mağazası; joker ve SSS metinleri satın alınmış jokerlere göre güncellendi. Yıldız değerleri, 300 sınırı, fiyatlar ve ücretsiz haklar `src/economy/rules.ts` ve motordan okunur (`STAR_RULES_TEXT`); elle sayı yazılmaz.
+- **İlk eğitim (4 kart):** Parçayı yerleştir → Hatları temizle → Yıldız kazan → Modunu tanı. Mevcut `Tutorial` bileşeni ve sahne yapısı kullanılır; yeni sahneler (`stars`, `modes`) durağandır. Eğitim yalnızca bir kaplama: tahta, skor, yıldız ve joker haklarına dokunmaz, joker kullanmaz.
+- **Kime kendiliğinden açılır:** `tutorialStore.shouldAutoShow` — eğitim görülmemiş, bu modda rekor 0 ve `hasPriorUse` yanlış (hiçbir Klasik/Eğlence rekoru, görülmüş joker tanıtımı, yıldız/biten oyun/satın alma kaydı yok). Açılışta oluşan boş yıldız kaydı iz sayılmaz; bozuk kayıt "oynamış" sayılır. Kontrol hiçbir kaydı değiştirmez.
+- **Sıra:** yeni oyuncu Eğlence'de açarsa önce eğitim, kapanınca joker tanıtımı gelir (hiçbir zaman üst üste değil). İkisi de "Nasıl Oynanır?" ekranından tekrar açılır.

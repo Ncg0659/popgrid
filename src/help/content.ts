@@ -8,6 +8,7 @@
  */
 import { DEFAULT_FREE_JOKERS, clearBasePoints, scoreMove } from '../engine'
 import type { JokerKind } from '../engine/types'
+import { FUN_STAR_CAP, JOKER_PRICES, LINE_CLEAR_STARS, STARS_PER_HUNDRED_POINTS } from '../economy/rules'
 
 export type Availability = 'oyunda' | 'planlanan'
 
@@ -31,6 +32,16 @@ const fmt = (n: number) => n.toLocaleString('tr-TR')
 /** Oyun başına joker hakları (motorun varsayılanından; metin oyunla çelişmesin). */
 const J = DEFAULT_FREE_JOKERS
 export const JOKER_RIGHTS_TEXT = `${J.cekic} Çekiç, ${J.yenile} Yenile ve ${J.dondur} Döndür`
+
+/** Yıldız ve mağaza metinleri (Aşama 7.4): sayılar ekonomi kurallarından gelir, elle yazılmaz. */
+const S = LINE_CLEAR_STARS
+const P = JOKER_PRICES
+export const STAR_RULES_TEXT = {
+  lines: `1 hat ${S.one}, 2 hat ${S.two}, 3 ve daha fazla hat ${S.threePlus} yıldız`,
+  end: `Oyun sonunda her 100 puan için ${STARS_PER_HUNDRED_POINTS} yıldız`,
+  cap: `Eğlence Modu’nda bir oyunda en çok ${fmt(FUN_STAR_CAP)} yıldız kazanılır (hatlar ve oyun sonu birlikte); Klasik’te sınır yoktur.`,
+  prices: `Çekiç ${P.cekic}, Yenile ${P.yenile}, Döndür ${P.dondur} yıldız`,
+} as const
 
 /** Puan örnekleri (motordan). */
 export const SCORE_EXAMPLES = {
@@ -56,8 +67,23 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
           'Tahta 8 × 8 karedir.',
           'Altta her seferinde üç parça gelir. Klasik Mod’da parçalar döndürülemez.',
           'Üç parçayı da yerleştirince yeni üç parça gelir.',
-          'Dolu bir satır ya da sütun patlar ve yer açılır.',
+          'Dolu bir satır ya da sütun patlar ve yer açılır. Temizlediğin hatlardan puan ve yıldız kazanırsın.',
           'Hiçbir parça sığmayınca oyun biter.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'modlar',
+    title: 'Oyun modları',
+    availability: 'oyunda',
+    blocks: [
+      {
+        kind: 'list',
+        items: [
+          'Klasik: jokersiz, saf blok bulmacası. Klasik Mod’da parçalar döndürülemez.',
+          `Eğlence: Çekiç, Yenile ve Döndür jokerleri var. Her yeni Eğlence oyununda ücretsiz ${JOKER_RIGHTS_TEXT} hakkın olur.`,
+          'Modu “Yeni oyun” düğmesinden ya da oyun sonunda seçersin; oyun ortasında mod değişmez.',
         ],
       },
     ],
@@ -110,6 +136,24 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     ],
   },
   {
+    id: 'yildizlar',
+    title: 'Yıldızlar',
+    availability: 'oyunda',
+    blocks: [
+      { kind: 'text', text: 'Hat temizledikçe yıldız kazanırsın. Yıldızlar puandan ayrıdır; mağazada joker almak için kullanılır.' },
+      {
+        kind: 'list',
+        items: [
+          `Bir hamlede temizlenen hatlara göre: ${STAR_RULES_TEXT.lines}. Aynı hamlenin ödülleri toplanmaz (2 hat = ${S.two} yıldız).`,
+          `${STAR_RULES_TEXT.end}.`,
+          STAR_RULES_TEXT.cap,
+          'Jokerler yıldız kazandırmaz. Kazandığın yıldızlar geri alınmaz.',
+          'Yıldız bakiyen yıldız düğmesinde görünür ve bu cihazda saklanır.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'bitis',
     title: 'Oyun bitişi',
     availability: 'oyunda',
@@ -140,12 +184,31 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
         kind: 'list',
         items: [
           'Jokerler puan vermez ve komboyu bozmaz; kombo yalnızca parça yerleştirince değişir.',
-          `Joker hakların her yeni Eğlence oyununda yeniden verilir (${JOKER_RIGHTS_TEXT}); kullanılmayan haklar sonraki oyuna geçmez.`,
-          'Klasik ve Eğlence rekorları ayrı tutulur.',
+          `Ücretsiz hakların her yeni Eğlence oyununda yeniden verilir (${JOKER_RIGHTS_TEXT}); kullanılmayan ücretsiz haklar sonraki oyuna geçmez. Mağazadan aldığın jokerler saklanır.`,
+          'Önce ücretsiz haklar harcanır, sonra satın aldıkların.',
+          'Klasik ve Eğlence rekorları ayrı tutulur. Satın alınmış joker kullandığın Eğlence oyunlarının rekoru da ayrıdır.',
           'Hiçbir parça sığmadığında işe yarayacak bir jokerin varsa oyun bitmez: jokerini kullan ya da “Bitir”e dokun. İşe yarayan joker kalmadıysa oyun biter.',
         ],
       },
       { kind: 'replayJokerIntro' },
+    ],
+  },
+  {
+    id: 'magaza',
+    title: 'Yıldız Mağazası',
+    availability: 'oyunda',
+    blocks: [
+      { kind: 'text', text: 'Yıldız düğmesine dokununca mağaza açılır. Yıldızlarınla joker alabilirsin:' },
+      {
+        kind: 'list',
+        items: [
+          `Fiyatlar: ${STAR_RULES_TEXT.prices}.`,
+          'Eğlence oyunu sürerken aldığın joker hemen o oyuna eklenir ve aynı oyunda kullanılabilir.',
+          'Klasik’te aldığın joker, sonraki Eğlence oyununda hazır olur.',
+          'Önce ücretsiz hakların harcanır; satın aldıkların ücretsizler bitince kullanılır. Kullanmadıkların sonraki Eğlence oyunlarına kalır.',
+          'Yıldızların yetmiyorsa ya da oyun başka bir sekmede açıksa satın alma düğmeleri kapalı olur.',
+        ],
+      },
     ],
   },
   {
@@ -159,6 +222,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
           'Hoparlör: oyun seslerini açar veya kapatır. Seçimin bu cihazda hatırlanır.',
           'Döngü oku (Yeni oyun): mod seçimini açar (Klasik ya da Eğlence). Oyun sürerken iki kez dokunman gerekir; yanlışlıkla sıfırlanmasın diye.',
           'Taç: bu cihazdaki Klasik rekorun. Eğlence Modu’nda yerinde mor rozetle Eğlence rekorun görünür.',
+          'Yıldız: yıldız bakiyen. Dokununca Yıldız Mağazası açılır.',
           'Soru işareti: bu rehberi açar.',
         ],
       },
@@ -172,10 +236,11 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
       {
         kind: 'faq',
         items: [
-          { q: 'Rekorum nerede saklanıyor?', a: 'Bu cihazda, tarayıcının hafızasında. Klasik ve Eğlence rekorları ayrı saklanır. Başka bir cihazda görünmez; tarayıcı verilerini silersen kaybolur.' },
+          { q: 'Rekorum ve yıldızlarım nerede saklanıyor?', a: 'Bu cihazda, tarayıcının hafızasında. Klasik, Eğlence ve satın alınmış jokerli Eğlence rekorları ayrı saklanır. Başka bir cihazda görünmez; tarayıcı verilerini silersen kaybolur.' },
           { q: 'Sayfayı yenilersem oyunum devam eder mi?', a: 'Hayır. Şimdilik süren oyun kaydedilmiyor; yalnızca rekorların, ses ve mod tercihin saklanır.' },
           { q: 'Klasik ve Eğlence Modu arasındaki fark nedir?', a: 'Klasik jokersizdir. Eğlence Modu’nda her oyuna Çekiç, Yenile ve Döndür jokerleriyle başlarsın. İki modun rekoru ayrıdır.' },
-          { q: 'Joker hakları sonraki oyuna geçer mi?', a: `Hayır. Haklar her yeni Eğlence oyununda yeniden verilir: ${JOKER_RIGHTS_TEXT}.` },
+          { q: 'Joker hakları sonraki oyuna geçer mi?', a: `Ücretsiz haklar geçmez; her yeni Eğlence oyununda yeniden verilir: ${JOKER_RIGHTS_TEXT}. Mağazadan aldığın jokerler ise kullanana kadar saklanır.` },
+          { q: 'Yıldız nasıl kazanırım?', a: `Hat temizleyerek: ${STAR_RULES_TEXT.lines}. ${STAR_RULES_TEXT.end}.` },
           { q: 'Jokerler puan verir mi?', a: 'Hayır. Jokerler puan vermez ve komboyu bozmaz.' },
           { q: 'Ses gelmiyor, neden?', a: 'Hoparlör düğmesinin açık olduğundan emin ol. iPhone sessiz moddaysa oyun sesleri duyulmaz; sesi açmak için sessiz modu kapat.' },
           { q: 'Parçaları döndürebilir miyim?', a: 'Klasik Mod’da hayır: parçalar geldiği yönde yerleştirilir; bu oyunun zorluğunun bir parçası. Eğlence Modu’nda Döndür jokeriyle döndürebilirsin.' },
@@ -192,7 +257,7 @@ export function visibleSections(sections: readonly HelpSection[] = HELP_SECTIONS
   return sections.filter((s) => s.availability === 'oyunda')
 }
 
-export type TutorialScene = 'drag' | 'clear' | 'refill' | 'gameover'
+export type TutorialScene = 'drag' | 'clear' | 'stars' | 'modes'
 
 export interface TutorialCard {
   readonly id: string
@@ -201,30 +266,31 @@ export interface TutorialCard {
   readonly scene: TutorialScene
 }
 
+/** İlk açılış eğitimi (Aşama 7.4): yerleştir, temizle, yıldız kazan, modunu tanı. */
 export const TUTORIAL_CARDS: readonly TutorialCard[] = [
   {
-    id: 'surukle',
-    title: 'Sürükle ve bırak',
-    text: 'Alttaki parçalardan birini tut ve tahtaya sürükle. Gölge, parçanın nereye oturacağını gösterir.',
+    id: 'yerlestir',
+    title: 'Parçayı yerleştir',
+    text: 'Alttaki üç parçadan birini tahtaya sürükle; gölge nereye oturacağını gösterir. İstersen parçaya, sonra tahtaya dokunarak da koyabilirsin.',
     scene: 'drag',
   },
   {
-    id: 'patlat',
-    title: 'Doldur ve patlat',
-    text: 'Bir satırı ya da sütunu tamamen doldur: bloklar patlar, puan kazanırsın.',
+    id: 'temizle',
+    title: 'Hatları temizle',
+    text: 'Bir satırı ya da sütunu tamamen doldur: bloklar patlar, puan kazanırsın. Hiçbir parça sığmayınca oyun biter.',
     scene: 'clear',
   },
   {
-    id: 'uclu',
-    title: 'Üç parça, sonra yenileri',
-    text: 'Her seferinde üç parça gelir. Üçünü de yerleştirince yenileri gelir. Klasik Mod’da parçalar döndürülemez.',
-    scene: 'refill',
+    id: 'yildiz',
+    title: 'Yıldız kazan',
+    text: `Her temizlemede yıldız kazanırsın: ${STAR_RULES_TEXT.lines}. ${STAR_RULES_TEXT.end} daha.`,
+    scene: 'stars',
   },
   {
-    id: 'bitis',
-    title: 'Yer kalmayınca biter',
-    text: 'Kalan parçaların hiçbiri sığmazsa oyun biter. Aynı anda çok hat temizle, art arda temizleyip kombo yap!',
-    scene: 'gameover',
+    id: 'mod',
+    title: 'Modunu tanı',
+    text: `Klasik jokersizdir. Eğlence’de her oyuna ücretsiz ${JOKER_RIGHTS_TEXT} jokeriyle başlarsın. Modu “Yeni oyun” düğmesinden seçersin.`,
+    scene: 'modes',
   },
 ]
 

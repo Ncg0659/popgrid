@@ -4,6 +4,10 @@
  * sahneler durağan kalır ve oklar/etiketler anlatımı taşır.
  */
 import type { CSSProperties, ReactNode } from 'react'
+import { DEFAULT_FREE_JOKERS, JOKER_KINDS } from '../engine'
+import { LINE_CLEAR_STARS, STARS_PER_HUNDRED_POINTS } from '../economy/rules'
+import { JokerIcon } from '../ui/JokerIcon'
+import { StarIcon } from '../ui/StarIcon'
 import type { TutorialScene } from './content'
 
 type Grid = number[]
@@ -53,8 +57,6 @@ function Piece({ cells, color, row, col, className, style }: {
 
 const L_SHAPE: Array<[number, number]> = [[0, 0], [1, 0], [2, 0], [2, 1]]
 const H2: Array<[number, number]> = [[0, 0], [0, 1]]
-const SQ2: Array<[number, number]> = [[0, 0], [0, 1], [1, 0], [1, 1]]
-const H3: Array<[number, number]> = [[0, 0], [0, 1], [0, 2]]
 const DOT: Array<[number, number]> = [[0, 0]]
 
 function DragScene() {
@@ -96,43 +98,61 @@ function ClearScene() {
   )
 }
 
-function RefillScene() {
+/** Aşama 7.4: hat sayısına göre yıldız (değerler ekonomi kurallarından). Durağan sahne. */
+function StarsScene() {
+  const rows = [
+    { lines: 1, stars: LINE_CLEAR_STARS.one, label: '1 hat' },
+    { lines: 2, stars: LINE_CLEAR_STARS.two, label: '2 hat' },
+    { lines: 3, stars: LINE_CLEAR_STARS.threePlus, label: '3+ hat' },
+  ]
   return (
-    <div className="scene scene-refill">
-      <div className="mini-tray" aria-hidden="true">
-        {[
-          { cells: SQ2, color: 2 },
-          { cells: H3, color: 4 },
-          { cells: L_SHAPE, color: 6 },
-        ].map((p, i) => (
-          <div key={i} className="mini-slot">
-            <Piece cells={p.cells} color={p.color} row={0} col={0} className={`tray-out out-${i}`} />
-            <Piece cells={[SQ2, H2, H3][i]!} color={[5, 1, 3][i]!} row={0} col={0} className="tray-in" />
-          </div>
+    <div className="scene scene-stars">
+      <ul className="star-rows">
+        {rows.map((r) => (
+          <li key={r.lines} className="star-row">
+            <span className="star-row-lines">
+              <span className="hat-chips">
+                {Array.from({ length: r.lines }, (_, i) => (
+                  <span key={i} className="blk" data-c={[1, 4, 6][i]} />
+                ))}
+              </span>
+              {r.label}
+            </span>
+            <span className="star-row-arrow">→</span>
+            <span className="star-row-gain">
+              <StarIcon />+{r.stars}
+            </span>
+          </li>
         ))}
-      </div>
-      <span className="scene-label">Üçü de bitti → yeni üç parça</span>
+      </ul>
+      <span className="scene-label">Oyun sonu: her 100 puan → +{STARS_PER_HUNDRED_POINTS}</span>
     </div>
   )
 }
 
-function GameOverScene() {
-  const board = grid([
-    '1122.455', '1.223445', '66.23.45', '61122.44',
-    '.5562233', '45.6.123', '445566.1', '2.33.441',
-  ])
+/** Aşama 7.4: Klasik ve Eğlence farkı (ücretsiz haklar motordan). Durağan sahne. */
+function ModesScene() {
   return (
-    <div className="scene scene-over">
-      <MiniBoard cells={board} />
-      <div className="mini-tray" aria-hidden="true">
-        <div className="mini-slot stuck">
-          <Piece cells={SQ2} color={2} row={0} col={0} />
-        </div>
-        <div className="mini-slot stuck">
-          <Piece cells={H3} color={4} row={0} col={0} />
-        </div>
+    <div className="scene scene-modes">
+      <div className="mode-mini" data-mode="klasik">
+        <svg className="mode-mini-icon" viewBox="0 0 24 24">
+          <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.8 10H4.8z" />
+        </svg>
+        <strong>Klasik</strong>
+        <span>Jokersiz</span>
       </div>
-      <span className="scene-label">Hiçbiri sığmıyor → oyun biter</span>
+      <div className="mode-mini" data-mode="eglence">
+        <StarIcon className="mode-mini-icon" />
+        <strong>Eğlence</strong>
+        <span className="mode-mini-jokers">
+          {JOKER_KINDS.map((k) => (
+            <span key={k} className="jk-chip mm-chip" data-kind={k}>
+              <JokerIcon kind={k} />
+              <span className="jk-count">{DEFAULT_FREE_JOKERS[k]}</span>
+            </span>
+          ))}
+        </span>
+      </div>
     </div>
   )
 }
@@ -140,6 +160,6 @@ function GameOverScene() {
 export function TutorialSceneView({ scene }: { scene: TutorialScene }) {
   if (scene === 'drag') return <DragScene />
   if (scene === 'clear') return <ClearScene />
-  if (scene === 'refill') return <RefillScene />
-  return <GameOverScene />
+  if (scene === 'stars') return <StarsScene />
+  return <ModesScene />
 }

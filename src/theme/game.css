@@ -1035,6 +1035,118 @@ button {
   gap: 2px;
 }
 
+/* Aşama 7.4: "Yıldız kazan" sahnesi (durağan). */
+.star-rows {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 260px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.star-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: var(--sticker);
+  box-shadow: 0 3px 0 var(--lilac);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.star-row-lines {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.star-row-arrow {
+  color: var(--ink-soft);
+}
+
+.star-row-gain {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 52px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.star-row-gain .star-icon {
+  width: 22px;
+  height: 22px;
+}
+
+/* Aşama 7.4: "Modunu tanı" sahnesi (durağan). */
+.scene-modes {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: min(100%, 290px);
+}
+
+.mode-mini {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  padding: 12px 8px 14px;
+  border-radius: 18px;
+  background: var(--sticker);
+  box-shadow: 0 4px 0 var(--lilac);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mode-mini strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.mode-mini-icon {
+  width: 34px;
+  height: 34px;
+  fill: var(--c3);
+  stroke: #e3a400;
+  stroke-width: 1.2;
+}
+
+.mode-mini[data-mode='eglence'] .mode-mini-icon {
+  fill: var(--c5);
+  stroke: #6b34c4;
+}
+
+.mode-mini-jokers {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.mm-chip {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
+
+.mm-chip .jk-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.mm-chip .jk-count {
+  top: -7px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
 .scene-label {
   padding: 4px 12px;
   border-radius: 999px;
