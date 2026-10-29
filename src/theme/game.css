@@ -78,6 +78,8 @@ button {
   padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
     max(16px, env(safe-area-inset-left));
   background: linear-gradient(180deg, var(--sky) 0%, var(--sky-soft) 24%, var(--sun) 58%, var(--butter) 100%);
+  /* Dinamik Atmosfer katmanları (z-index: -1) bu arka planın üstünde, içeriğin altında kalsın diye. */
+  isolation: isolate;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -2758,5 +2760,35 @@ button {
     left: 3px;
     padding: 1px 5px;
     font-size: 12px;
+  }
+}
+
+/* =====================================================================
+ * Dinamik Atmosfer — arka plan, bu oyunun puanına göre (src/theme/atmosphere.ts).
+ * İlk seviye `.game`'in kendi arka planıdır; üst seviyeler bunun üstüne serilen katmanlardır.
+ * Yalnızca katman opaklığı değişir (ekran kartında birleştirilir, gradient yeniden boyanmaz).
+ * Tahta, tepsi, düğmeler ve pencereler bu katmanların ÜSTÜNDE kalır ve değişmez.
+ * ===================================================================== */
+.atmos {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.atmos-layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--atmos-fade, 1000ms) ease-in-out;
+}
+
+/* Hareketi Azalt: renk anında değişir, geçiş yok. */
+.atmos[data-instant] .atmos-layer {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atmos-layer {
+    transition: none;
   }
 }
