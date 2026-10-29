@@ -113,3 +113,13 @@ Günlük yarışmada bütün oyuncuların **aynı parça sırasını** görmesi 
 - **Kısa ekranlar (R2):** yüksekliği 640px ve altı ekranlarda Klasik'te satır 36px yer kaplar (yıldız düğmesi yine 44px, boşluğa taşar), bölüm boşluğu 10 → 7px, alt kenar 12 → 8px; tahta main ile aynı (320×568) ya da 2px içinde (375×553). Eğlence ve uzun ekranlar değişmez.
 - **Satın alma bildirimi (R3):** "Çekiç alındı! Bir sonraki Eğlence oyununda kullanabilirsin." yalnızca kalıcı kayıt başarılıysa.
 - Oyun sonu dokunma koruması (450 ms) artık pencere ekrana yerleştiği anda başlar (yoğun anlarda kısalmasın).
+
+## Efektler ve sesler: yıldız ve satın alma geri bildirimi (Aşama 7.3)
+
+- **Süreler tek yerde:** `src/fx/fxTiming.ts`. Yeni efektlerde hareket en çok 300 ms; bilginin ekranda kalma süresi ayrı tutulur (en çok 1,3 sn). Gerçek değerler (bakiye, hak sayısı, etiketler) hiç beklemez; animasyon yalnızca gösterimdir.
+- **Ses eşlemesi:** olay → ses kararı saf `src/audio/soundCue.ts`'te, çalma tek kancada (`src/audio/useSoundCues.ts`, `playCue`). Tek yeni ses satın alma sesidir (`playPurchase`, iki nota, ~150 ms); yalnızca kalıcı kaydı yapılan alımda çalar. Yıldız kazanmanın ayrı sesi yoktur. Ses kapalıyken ses motoru hiç kurulmaz; iPhone sessiz moduna uyulur.
+- **Yıldız düğmesi:** bu sekmenin olayları `useGame.starPulse` ile gelir (kazanım: hamle ödülü, harcama: satın alma). Kazanımda düğmenin üst kenarında "+N" çipi (150 ms giriş, 900 ms sabit, 250 ms solma); bakiye `useStarCount` ile 300 ms'de sayılır. Başka sekmenin yazdığı değişiklik bakiyeyi sessizce, tek adımda günceller. Klasik ve Eğlence aynı bileşeni kullanır.
+- **Mağaza:** başarılı alımda fiyat düğmesinde ✓ (150 + 700 + 150 ms), "Sende" sayısı tek zıplama, bakiye sayılarak düşer ve kısa süre mercan renkte kalır. Eğlence'de oyuna eklenen jokerin hak sayısı mağaza kapanınca bir kez zıplar.
+- **Oyun sonu:** "+N yıldız" 150 ms bekleme sonrası 300 ms'de sayılır; son değer defterdeki oyun özetidir.
+- **Hareketi azalt:** hareket yok, bilgi kaybolmaz (çip yerinde belirip solar, sayılar tek adımda, ✓ sabit).
+- **Efekt tahta ölçüsü:** `src/fx/boardGeometry.ts` (`cellCenter`) yalnızca efekt katmanında; sürükle-bırak ve tahta çizimi kendi ölçülerini kullanır.

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { STAR_BANNER_MS, STAR_NOTICE_MS } from '../fx/fxTiming'
 import type { EconomyBanner } from './economyUi'
 
 interface Props {
@@ -16,7 +17,7 @@ export function StarToast({ notice, banner }: Props) {
   useEffect(() => {
     if (!notice) return
     setShown({ key: `n${notice.id}`, text: notice.text, warn: false })
-    const t = window.setTimeout(() => setShown(null), 3500)
+    const t = window.setTimeout(() => setShown(null), STAR_NOTICE_MS)
     return () => window.clearTimeout(t)
   }, [notice])
 
@@ -26,7 +27,7 @@ export function StarToast({ notice, banner }: Props) {
     lastBanner.current = text
     if (!text) return
     setShown({ key: `b${text}`, text, warn: true })
-    const t = window.setTimeout(() => setShown(null), 6000)
+    const t = window.setTimeout(() => setShown(null), STAR_BANNER_MS)
     return () => window.clearTimeout(t)
   }, [banner])
 

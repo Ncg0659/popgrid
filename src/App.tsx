@@ -5,7 +5,9 @@ import { JokerIntro } from './help/JokerIntro'
 import { Tutorial } from './help/Tutorial'
 import { jokerIntroStore } from './storage/jokerIntro'
 import { tutorialStore } from './storage/tutorial'
-import { isSoundEnabled, playClear, playJoker, playPlace, setSoundEnabled } from './audio/sound'
+import { isSoundEnabled, playPlace, setSoundEnabled } from './audio/sound'
+import { purchaseCue } from './audio/soundCue'
+import { playCue, useSoundCues } from './audio/useSoundCues'
 import { FxCanvas } from './fx/FxCanvas'
 import { useReducedMotion } from './fx/useReducedMotion'
 import { useDrag } from './input/useDrag'
@@ -49,18 +51,15 @@ export default function App() {
   })
   const [soundOn, setSoundOn] = useState(isSoundEnabled)
 
-  // Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi.
+  // Aşama 7.3c: mağaza kapanınca, oyuna eklenen jokerlerin hak sayısı bir kez zıplar (panel açıkken görünmezdi).
+  const flushJokerBumps = g.flushJokerBumps
   useEffect(() => {
-    if (!effect) return
-    if (effect.lines > 0) playClear(effect.lines, effect.combo)
-    else playPlace()
-  }, [effect])
+    if (overlay !== 'shop') flushJokerBumps()
+  }, [overlay, flushJokerBumps])
 
-  // Joker sesi: yalnızca joker gerçekten uygulandığında (jokerFx yalnızca başarılı sonuçta oluşur).
+  // Hamle ve joker sesleri (eşleme src/audio/soundCue.ts'te).
   const jokerFx = g.jokerFx
-  useEffect(() => {
-    if (jokerFx) playJoker(jokerFx.kind)
-  }, [jokerFx])
+  useSoundCues(effect, jokerFx)
 
   const toggleSound = () => {
     const next = !soundOn
@@ -113,16 +112,24 @@ export default function App() {
     if (!id) return null
     // Eğlence oyunu sürüyorsa joker aynı kayıtta bu oyuna da getirilir ve hemen kullanılabilir.
     const target = g.purchaseTarget()
+    const starsBefore = eco.store.load().state.stars
     const r = eco.store.purchase(kind, id, target)
     const success = r.ok && r.persisted
     purchaseGuard.current.settle(performance.now(), success)
     eco.apply(r)
     const intoGame = success && r.ok && r.intoGame === true && target !== undefined && g.grantPurchased(target, kind)
-    return { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true, intoGame } : { ok: false, reason: r.reason }) }
+    const result = { ok: success, text: purchaseMessage(kind, r.ok ? { ok: true, intoGame } : { ok: false, reason: r.reason }) }
+    // Aşama 7.3c: geri bildirim (bakiye sayımı, mercan renk, ses) yalnızca kalıcı kaydı yapılan alımda.
+    if (success) g.pulseStars('spend', starsBefore - r.state.stars)
+    const cue = purchaseCue(result)
+    if (cue) playCue(cue)
+    return result
   }
 
   const banner = economyBanner(eco.status, eco.persistent)
-  const starButton = <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} />
+  const starButton = (
+    <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} pulse={g.starPulse} reducedMotion={reducedMotion} />
+  )
 
   const startMode = (mode: 'klasik' | 'eglence') => {
     g.startGame(mode)
@@ -203,6 +210,7 @@ export default function App() {
               onRefresh={g.refresh}
               onDisarm={g.disarm}
               trailing={starButton}
+              bump={g.jokerBump}
             />
             {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
             <p className="hint sr-only" aria-live="polite">
@@ -234,6 +242,7 @@ export default function App() {
           isNewBest={g.record.isNew}
           recordLine={g.record.line}
           boughtCategory={g.record.category === 'eglenceSatin'}
+          reducedMotion={reducedMotion}
           onRestart={g.restart}
           onChooseMode={() => setOverlay('mode')}
         />
@@ -278,6 +287,8 @@ export default function App() {
         onTakeOver={eco.takeOver}
         onClose={() => setOverlay('none')}
         returnFocus={shopButton}
+        pulse={g.starPulse}
+        reducedMotion={reducedMotion}
       />
     )}
     {overlay === 'jokerIntro' && (
