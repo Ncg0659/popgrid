@@ -6,37 +6,48 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Varsayılan: hiçbir izin yok. Her iş yalnızca kendi ihtiyacını alır (güvenlik denetimi Y1).
+permissions: {}
 
+# Aynı daldaki eski çalıştırma iptal edilir; PR çalıştırmaları main yayınını iptal edemez.
 concurrency:
-  group: pages
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Bağımlılık kurulumu bu işte çalışır: yayın yetkisi (pages / id-token) YOKTUR.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # package-lock.json henüz yok; ilk başarılı kurulumdan sonra eklenip `npm ci`ye geçilecek.
-      - run: npm install
+      # Kilit dosyasındaki sürümler birebir kurulur; paketlerin kurulum betikleri çalıştırılmaz.
+      - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Yayın paketi yalnızca main'de hazırlanır.
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request'
+    # Yalnızca main: PR'lar ve başka daldan elle başlatılan çalıştırmalar yayın yapamaz.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # Yayınlar sırayla yapılır; süren bir yayın yarıda kesilmez.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
