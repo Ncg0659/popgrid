@@ -13,7 +13,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { DEFAULT_CONFIG, applyJoker, createRng, newGame, play, type GameEvent, type GameState, type JokerKind, type Tray } from '../src/engine'
+import { DEFAULT_CONFIG, applyJoker, canRescue, createRng, newGame, play, type GameEvent, type GameState, type JokerKind, type Tray } from '../src/engine'
 import { awardMove, finishGame, initialEconomy, startGame, syncUsage } from '../src/economy/ledger'
 import { FUN_STAR_CAP, linesCleared, luckyStars, starsForLines } from '../src/economy/rules'
 import { greedyBot, jokerRescueAction, plannerBot, randomBot, type Bot } from './bot'
@@ -122,6 +122,8 @@ function runGame(seed: number, bot: Bot, specials: boolean, variant: Variant = '
       const free = { ...state.jokers.free }
       for (const ev of r.events) if (ev.type === 'luckyReward' && ev.reward.type === 'joker') free[ev.reward.joker] -= 1
       state = { ...state, jokers: { ...state.jokers, free } }
+      // Motor "sıkıştı ama jokerle kurtulur" dediyse ve kurtuluş geri alınan jokere bağlıysa: bu varyantta oyun biter.
+      if (state.stuck && !canRescue(state)) state = { ...state, stuck: false, gameOver: true }
     }
     const a = awardMove(e, id, state.moveCount, r.events)
     if (!a.ok) throw new Error(`awardMove: ${a.reason}`)
