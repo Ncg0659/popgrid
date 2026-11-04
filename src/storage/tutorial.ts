@@ -18,6 +18,8 @@ export interface TutorialStore {
 export const PRIOR_USE_KEYS = {
   best: 'popgrid:v1:best',
   bestFun: 'popgrid:v1:best:eglence',
+  /** Aşama 8: özel bloklu Eğlence rekoru (yeni kategori). */
+  bestFunOzel: 'popgrid:v1:best:eglence-ozel',
   jokerIntro: 'popgrid:v1:joker-intro',
   economy: 'popgrid:v1:economy',
 } as const
@@ -35,7 +37,7 @@ export function hasPriorUse(storage: Pick<Storage, 'getItem'> | null): boolean {
     }
   }
   const num = (k: string) => Number(read(k) ?? '0') || 0
-  if (num(PRIOR_USE_KEYS.best) > 0 || num(PRIOR_USE_KEYS.bestFun) > 0) return true
+  if (num(PRIOR_USE_KEYS.best) > 0 || num(PRIOR_USE_KEYS.bestFun) > 0 || num(PRIOR_USE_KEYS.bestFunOzel) > 0) return true
   if (read(PRIOR_USE_KEYS.jokerIntro) === 'done') return true
   const raw = read(PRIOR_USE_KEYS.economy)
   if (!raw) return false

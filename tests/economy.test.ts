@@ -438,12 +438,13 @@ describe('şema 1 → 2 geçişi (eski veri)', () => {
     expect(r.state.owner).toBe(null)
   })
 
-  it('ilk işlemle kayıt şema 2 olarak yazılır; eski oyun ve envanter korunur, eski anahtarlar değişmez', () => {
+  // Aşama 8: güncel şema 3 (şema 1 kaydı doğrudan 3 olarak yazılır; 2 → 3 geçişi ayrıca test edilir).
+  it('ilk işlemle kayıt güncel şemayla (3) yazılır; eski oyun ve envanter korunur, eski anahtarlar değişmez', () => {
     const st = memoryStorage({ ...OLD_KEYS, [ECONOMY_KEY]: v1() })
     const store = owned(st)
     expect(store.awardMove('eski-oyun', 4, [cleared([0])]).ok).toBe(true)
     const saved = JSON.parse(st.data.get(ECONOMY_KEY)!) as { schemaVersion: number; owner: { tabId: string } }
-    expect(saved.schemaVersion).toBe(2)
+    expect(saved.schemaVersion).toBe(3)
     expect(saved.owner.tabId).toBe(store.tabId)
     const back = parseEconomy(st.data.get(ECONOMY_KEY)!)
     expect(back.status).toBe('ok')

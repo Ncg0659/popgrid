@@ -24,11 +24,17 @@ const scaled = (n: number) => Math.max(2, Math.round(n * SCALE))
 const KINDS: readonly JokerKind[] = ['cekic', 'yenile', 'dondur']
 
 const planner = plannerBot()
-const PROFILES = [
+interface Profile {
+  readonly id: string
+  readonly name: string
+  readonly make: (seed: number) => Bot
+  readonly games: number
+}
+const PROFILES: readonly Profile[] = [
   { id: 'yeni', name: 'Yeni başlayan (rastgele bot)', make: (seed: number): Bot => randomBot(createRng(seed ^ 0xa5a5a5a5)), games: scaled(1000) },
   { id: 'ortalama', name: 'Ortalama (greedy bot)', make: (): Bot => greedyBot, games: scaled(500) },
   { id: 'deneyimli', name: 'Deneyimli (planlayıcı bot)', make: (): Bot => planner, games: scaled(100) },
-] as const
+]
 
 interface Game {
   moves: number
@@ -270,8 +276,8 @@ for (const p of ABLATION ? [] : PROFILES) {
 if (ABLATION) {
   const rows: string[] = ['| Profil (tohum) | Varyant | Hamle ort. | Hamle p50 · p90 | Skor ort. | Yıldız ort. | Tavana ulaşan | Şanslı joker / oyun | Hamle sınırı |', '|---|---|---:|---:|---:|---:|---:|---:|---:|']
   const sets = [
-    { p: PROFILES[1], n: scaled(500) },
-    { p: PROFILES[2], n: Number(process.env.ABLATION_PLANNER ?? 30) },
+    { p: PROFILES[1]!, n: scaled(500) },
+    { p: PROFILES[2]!, n: Number(process.env.ABLATION_PLANNER ?? 30) },
   ]
   for (const { p, n } of sets) {
     const variants: Array<[string, boolean, Variant]> = [['Önce (özel bloksuz)', false, 'tam'], ['Sonra (tam)', true, 'tam'], ['Sonra, bombasız', true, 'bombasiz'], ['Sonra, şanslı joker ödülü yok', true, 'jokersiz']]

@@ -32,7 +32,7 @@ export function newGame(seed: number, config: GeneratorConfig = DEFAULT_CONFIG, 
   const raw = generateTriple(seed >>> 0, 0, board, 0, config).tray
   const tray = specials ? assignSpecials(seed >>> 0, 0, raw) : raw
   return {
-    ...(specials ? { funRulesVersion: FUN_RULES_VERSION, specials: [] } : {}),
+    ...(specials ? { funRulesVersion: FUN_RULES_VERSION, specials: [], luckyJokers: 0 } : {}),
     generatorVersion: GENERATOR_VERSION,
     mode,
     jokers:
@@ -100,10 +100,12 @@ export function play(state: GameState, move: Move): PlayResult {
 
   let specials = state.specials
   let jokers = state.jokers
+  let luckyJokers = state.luckyJokers
   if (withSpecials) {
-    const outcome = resolveSpecials(board, state.specials ?? [], newSpecial, new Set(lineCells), score)
+    const outcome = resolveSpecials(board, state.specials ?? [], newSpecial, new Set(lineCells), score, state.luckyJokers ?? 0)
     board = outcome.board
     specials = outcome.specials
+    luckyJokers = outcome.luckyJokers
     score += outcome.points
     jokers = grantLuckyJokers(jokers, outcome.rewards)
     events.push(...outcome.events)
@@ -127,7 +129,7 @@ export function play(state: GameState, move: Move): PlayResult {
     combo,
     tripleIndex,
     moveCount: state.moveCount + 1,
-    ...(withSpecials ? { specials, jokers } : {}),
+    ...(withSpecials ? { specials, jokers, luckyJokers } : {}),
     rotatePaid: nextRotatePaid(state.rotatePaid ?? initialRotatePaid(), move.slot, tripleIndex !== state.tripleIndex),
   }
 
@@ -151,7 +153,7 @@ export function fingerprint(state: GameState): string {
   // Klasik parmak izi eskisiyle birebir aynı kalır; Eğlence Modu joker durumunu da ekler.
   if (state.mode === 'eglence') parts.push(state.jokers, state.refreshCount, state.rotatePaid, state.stuck)
   // Aşama 8: özel bloklu Eğlence oyununda özel bloklar ve kural sürümü de (özel bloksuz Eğlence eskisiyle aynı).
-  if (state.specials !== undefined) parts.push(state.funRulesVersion ?? null, state.specials)
+  if (state.specials !== undefined) parts.push(state.funRulesVersion ?? null, state.specials, state.luckyJokers ?? 0)
   const text = JSON.stringify(parts)
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {

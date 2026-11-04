@@ -10,7 +10,10 @@
  *
  * Sürüm geçişleri (sürümlü migrasyon):
  * - 1 → 2: sahiplik alanı (owner) eklendi; eski kayıtta yoktur, null olarak okunur. Diğer bütün alanlar
- *   (bakiye, envanter, etkin oyun, geçmiş, rekorlar, toplamlar) aynen taşınır. İlk yazmada kayıt 2 olur.
+ *   (bakiye, envanter, etkin oyun, geçmiş, rekorlar, toplamlar) aynen taşınır.
+ * - 2 → 3 (Aşama 8): özel bloklu Eğlence alanları — etkin oyunda funRules ve freeGranted, biten oyunda funRules,
+ *   ayrı rekorlar funBestsOzel. Eski kayıtta yoktur: etkin/biten oyun "Aşama 8 öncesi" sayılır, funBestsOzel 0'dır.
+ *   Diğer bütün alanlar aynen taşınır. İlk yazmada kayıt 3 olur.
  */
 import { JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameMode, JokerCharges } from '../engine/types'
@@ -60,9 +63,16 @@ function usage(v: unknown): JokerUsage | null {
   return free && purchased ? { free, purchased } : null
 }
 
-function active(v: unknown): ActiveGame | null | undefined {
+/** Aşama 8 alanı: yoksa undefined (Aşama 8 öncesi), varsa 1 veya üstü tamsayı olmalı; geçersizse null. */
+const funRulesField = (v: unknown): number | undefined | null => (v === undefined ? undefined : typeof v === 'number' && Number.isSafeInteger(v) && v >= 1 && v <= 999 ? v : null)
+
+function active(v: unknown, version: number): ActiveGame | null | undefined {
   if (v === null) return null
   if (!isObj(v)) return undefined
+  // Şema 1–2'de Aşama 8 alanları yoktur: oyun "Aşama 8 öncesi" sayılır.
+  const funRules = version >= 3 ? funRulesField(v.funRules) : undefined
+  const freeGranted = version >= 3 && v.freeGranted !== undefined ? charges(v.freeGranted) : undefined
+  if (funRules === null || freeGranted === null) return undefined
   const a = {
     id: id(v.id),
     mode: mode(v.mode),
@@ -72,11 +82,14 @@ function active(v: unknown): ActiveGame | null | undefined {
     inventoryAtStart: charges(v.inventoryAtStart),
     usage: usage(v.usage),
   }
-  return Object.values(a).some((x) => x === null) ? undefined : (a as ActiveGame)
+  if (Object.values(a).some((x) => x === null)) return undefined
+  return { ...(a as ActiveGame), ...(funRules !== undefined ? { funRules } : {}), ...(freeGranted ? { freeGranted } : {}) }
 }
 
-function finished(v: unknown): FinishedGame | null {
+function finished(v: unknown, version: number): FinishedGame | null {
   if (!isObj(v)) return null
+  const funRules = version >= 3 ? funRulesField(v.funRules) : undefined
+  if (funRules === null) return null
   const g = {
     id: id(v.id),
     mode: mode(v.mode),
@@ -86,7 +99,8 @@ function finished(v: unknown): FinishedGame | null {
     usage: usage(v.usage),
     usedPurchased: typeof v.usedPurchased === 'boolean' ? v.usedPurchased : null,
   }
-  return Object.values(g).some((x) => x === null) ? null : (g as FinishedGame)
+  if (Object.values(g).some((x) => x === null)) return null
+  return funRules !== undefined ? { ...(g as FinishedGame), funRules } : (g as FinishedGame)
 }
 
 /** Sahiplik: null ya da { tabId, until }. Geçersizse undefined. */
@@ -127,10 +141,12 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
 
   const stars = count(v.stars, MAX_STARS)
   const inventory = charges(v.inventory)
-  const act = active(v.active)
-  const history = Array.isArray(v.history) ? v.history.map(finished) : null
-  const fb = isObj(v.funBests) ? v.funBests : null
-  const funBests = fb && { withoutPurchased: count(fb.withoutPurchased), withPurchased: count(fb.withPurchased) }
+  const act = active(v.active, version)
+  const history = Array.isArray(v.history) ? v.history.map((g) => finished(g, version)) : null
+  const bests = (x: unknown) => (isObj(x) ? { withoutPurchased: count(x.withoutPurchased), withPurchased: count(x.withPurchased) } : null)
+  const funBests = bests(v.funBests)
+  // Şema 3: özel bloklu Eğlence rekorları zorunlu. Şema 1–2'de yoktur: 0 olarak taşınır.
+  const funBestsOzel = version >= 3 ? bests(v.funBestsOzel) : { withoutPurchased: 0, withPurchased: 0 }
   const t = isObj(v.totals) ? v.totals : null
   const totals = t && {
     earned: count(t.earned),
@@ -150,6 +166,8 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
     history.some((g) => g === null) ||
     !funBests ||
     Object.values(funBests).some((x) => x === null) ||
+    !funBestsOzel ||
+    Object.values(funBestsOzel).some((x) => x === null) ||
     !totals ||
     Object.values(totals).some((x) => x === null) ||
     !purchaseIds ||
@@ -167,6 +185,7 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
       active: act,
       history: (history as FinishedGame[]).slice(-HISTORY_LIMIT),
       funBests: funBests as EconomyState['funBests'],
+      funBestsOzel: funBestsOzel as EconomyState['funBestsOzel'],
       totals: totals as EconomyState['totals'],
       purchaseIds: (purchaseIds as string[]).slice(-PURCHASE_ID_LIMIT),
       owner: own,

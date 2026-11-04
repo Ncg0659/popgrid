@@ -191,9 +191,11 @@ export function economyBanner(status: EconomyStatus, persistent: boolean): Econo
 // ---------------------------------------------------------------------------
 
 /**
- * klasik: Klasik rekor. eglence: satın alınmış joker KULLANILMAYAN Eğlence oyunları (normal Eğlence rekoru,
- * eski anahtar popgrid:v1:best:eglence aynen sürer). eglenceSatin: satın alınmış joker kullanılan Eğlence
- * oyunları (ekonomi defterindeki funBests.withPurchased).
+ * klasik: Klasik rekor. eglence: satın alınmış joker KULLANILMAYAN Eğlence oyunları. eglenceSatin: satın alınmış
+ * joker kullanılan Eğlence oyunları.
+ * Aşama 8: Eğlence oyunları özel bloklu; rekorları ayrı yerde tutulur — eglence → popgrid:v1:best:eglence-ozel,
+ * eglenceSatin → defterdeki funBestsOzel.withPurchased. Aşama 8 öncesi Eğlence rekorları (popgrid:v1:best:eglence,
+ * funBests) korunur ve yeni oyunlarca değiştirilmez.
  */
 export type RecordCategory = 'klasik' | 'eglence' | 'eglenceSatin'
 

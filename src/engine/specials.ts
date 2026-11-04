@@ -11,6 +11,8 @@
  *   Patlamada temizlenen her dolu hücre +1 puan; hat sayılmaz (kombo ve hat yıldızı yok). Çekiç bombayı söndürür.
  * - Şanslı blok satır/sütun ya da patlamayla kaldırılınca tek ödül verir: %55 +5 yıldız, %25 +10 yıldız,
  *   %20 +1 ücretsiz joker (bu oyun için; %50 Döndür, %30 Çekiç, %20 Yenile). Çekiçle kaldırılırsa ödül yok.
+ * - Aşama 8.2 (simülasyon sonrası, onaylı A seçeneği): bir oyunda şanslı bloktan en fazla 2 ücretsiz joker
+ *   verilir; sonraki joker ödülleri +5 yıldıza dönüşür (300 yıldız tavanına tabi).
  */
 import { cellIndex } from './board'
 import { createRng, mixSeed } from './rng'
@@ -39,6 +41,11 @@ export const BOMB_PER_MILLE = 120
 export const LUCKY_PER_MILLE = 100
 /** Bombanın sayacı: yerleştikten sonraki kaç başarılı yerleştirmede patlar. */
 export const BOMB_FUSE = 3
+
+/** Bir oyunda şanslı bloktan verilebilecek en fazla ücretsiz joker (Aşama 8.2, A seçeneği). */
+export const LUCKY_JOKER_CAP = 2
+/** Sınır dolduktan sonra joker ödülünün yerine verilen yıldız. */
+export const LUCKY_JOKER_OVERFLOW_STARS = 5
 
 /** Şanslı ödül dağılımı (yüzde, toplam 100). */
 export const LUCKY_REWARD_TABLE: ReadonlyArray<{ readonly percent: number; readonly reward: 'stars5' | 'stars10' | 'joker' }> = [
@@ -154,8 +161,10 @@ export interface SpecialsOutcome {
   readonly events: readonly GameEvent[]
   /** Patlamada temizlenen dolu hücre sayısı (= ek puan). */
   readonly points: number
-  /** Bu hamlede verilen şanslı ödüller (her şanslı blok en fazla bir kez). */
+  /** Bu hamlede verilen şanslı ödüller (her şanslı blok en fazla bir kez; sınır sonrası jokerler yıldıza dönmüş). */
   readonly rewards: readonly LuckyReward[]
+  /** Hamleden sonra bu oyunda şanslı bloktan verilmiş toplam ücretsiz joker. */
+  readonly luckyJokers: number
 }
 
 /**
@@ -171,6 +180,7 @@ export function resolveSpecials(
   placed: BoardSpecial | null,
   lineCleared: ReadonlySet<number>,
   scoreBefore: number,
+  luckyJokersBefore = 0,
 ): SpecialsOutcome {
   const all = placed ? [...existing, placed] : [...existing]
   const byCell = new Map<number, BoardSpecial>(all.map((s) => [s.cell, s]))
@@ -178,16 +188,27 @@ export function resolveSpecials(
   const queue: number[] = []
   const events: GameEvent[] = []
   const rewards: LuckyReward[] = []
+  let luckyJokers = luckyJokersBefore
+  /** Şanslı ödülü verir; oyun başı joker sınırı dolduysa joker yerine +5 yıldız. */
+  const payLucky = (cell: number, reward: LuckyReward, cause: 'line' | 'bomb'): GameEvent => {
+    if (reward.type === 'joker') {
+      if (luckyJokers >= LUCKY_JOKER_CAP) {
+        const stars: LuckyReward = { type: 'stars', amount: LUCKY_JOKER_OVERFLOW_STARS }
+        rewards.push(stars)
+        return { type: 'luckyReward', cell, reward: stars, cause, convertedFrom: reward.joker }
+      }
+      luckyJokers++
+    }
+    rewards.push(reward)
+    return { type: 'luckyReward', cell, reward, cause }
+  }
 
   // 1) Satır/sütunla kaldırılanlar.
   for (const s of all) {
     if (!lineCleared.has(s.cell)) continue
     removed.add(s.cell)
     if (s.kind === 'bomba') queue.push(s.cell)
-    else {
-      rewards.push(s.reward)
-      events.push({ type: 'luckyReward', cell: s.cell, reward: s.reward, cause: 'line' })
-    }
+    else events.push(payLucky(s.cell, s.reward, 'line'))
   }
 
   // 2) Eski bombaların sayacı (bu hamlede konan bomba sayılmaz).
@@ -221,10 +242,7 @@ export function resolveSpecials(
       if (!s || removed.has(cell)) continue
       removed.add(cell)
       if (s.kind === 'bomba') queue.push(cell)
-      else {
-        rewards.push(s.reward)
-        blastRewards.push({ type: 'luckyReward', cell, reward: s.reward, cause: 'bomb' })
-      }
+      else blastRewards.push(payLucky(cell, s.reward, 'bomb'))
     }
   }
 
@@ -240,7 +258,7 @@ export function resolveSpecials(
     events.push({ type: 'exploded', bombs: exploded, cells: clearedByBlast, points, score: scoreBefore + points })
   }
   events.push(...blastRewards)
-  return { board, specials, events, points, rewards }
+  return { board, specials, events, points, rewards, luckyJokers }
 }
 
 /** Çekiç: hücredeki özel blok kalkar (bomba söner, şanslı ödül vermez). */

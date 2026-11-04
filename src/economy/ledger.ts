@@ -24,8 +24,13 @@ import { DEFAULT_FREE_JOKERS, JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameEvent, GameMode, JokerCharges, JokerKind, JokerWallet } from '../engine/types'
 import { JOKER_PRICES, starCapFor, starsForFinalScore, starsForMove } from './rules'
 
-/** 1: Aşama 7.1 ilk sürüm. 2: sahiplik alanı (owner) eklendi. */
-export const ECONOMY_SCHEMA_VERSION = 2
+/**
+ * 1: Aşama 7.1 ilk sürüm. 2: sahiplik alanı (owner) eklendi.
+ * 3: Aşama 8 — özel bloklu Eğlence: etkin oyunda funRules ve şanslı bloktan verilen ücretsiz jokerler
+ *    (freeGranted), biten oyunda funRules, ayrı rekorlar (funBestsOzel). Eski kayıtlar (1, 2) okunur ve
+ *    bu alanlar boş/0 olarak taşınır; şema 3 kaydını eski sürüm "future" görür ve üzerine yazmaz.
+ */
+export const ECONOMY_SCHEMA_VERSION = 3
 
 /** Taşma ve bozuk kayıtlara karşı üst sınırlar (oyun içinde ulaşılması beklenmez). */
 export const MAX_STARS = 99_999_999
@@ -52,6 +57,10 @@ export interface ActiveGame {
   /** Oyuna getirilen satın alınmış haklar (oyun başındaki envanter). Klasik'te hep 0. */
   readonly inventoryAtStart: JokerCharges
   readonly usage: JokerUsage
+  /** Aşama 8: özel bloklu Eğlence oyununun kural sürümü (FUN_RULES_VERSION). Yoksa Aşama 8 öncesi oyun. */
+  readonly funRules?: number
+  /** Aşama 8: bu oyunda şanslı bloktan verilen ücretsiz jokerler (kullanım istatistiği için). Yoksa 0. */
+  readonly freeGranted?: JokerCharges
 }
 
 /** Biten oyunun özeti: ileride liderlik tablosu için "ücretsiz" ve "satın alınmış" kullanım ayrımı. */
@@ -64,6 +73,8 @@ export interface FinishedGame {
   readonly usage: JokerUsage
   /** Eğlence Modu'nda satın alınmış en az bir joker kullanıldı. */
   readonly usedPurchased: boolean
+  /** Aşama 8: özel bloklu Eğlence oyunu (kural sürümü). Yoksa Aşama 8 öncesi oyun. */
+  readonly funRules?: number
 }
 
 /**
@@ -100,7 +111,10 @@ export interface EconomyState {
   readonly inventory: JokerCharges
   readonly active: ActiveGame | null
   readonly history: readonly FinishedGame[]
+  /** Aşama 8 öncesi Eğlence oyunlarının ek rekorları (değişmez, yalnızca korunur). */
   readonly funBests: FunBests
+  /** Aşama 8: özel bloklu Eğlence oyunlarının ayrı ek rekorları. */
+  readonly funBestsOzel: FunBests
   readonly totals: EconomyTotals
   /** Son işlenen satın alma istek kimlikleri (çift dokunuş koruması). */
   readonly purchaseIds: readonly string[]
@@ -125,6 +139,9 @@ export type EconomyResult =
 
 const ZERO_USAGE: JokerUsage = { free: NO_JOKERS, purchased: NO_JOKERS }
 
+const withGranted = (start: JokerCharges, granted: JokerCharges | undefined): JokerCharges =>
+  granted ? { cekic: start.cekic + granted.cekic, yenile: start.yenile + granted.yenile, dondur: start.dondur + granted.dondur } : start
+
 export function initialEconomy(inventory: JokerCharges = NO_JOKERS): EconomyState {
   return {
     schemaVersion: ECONOMY_SCHEMA_VERSION,
@@ -133,6 +150,7 @@ export function initialEconomy(inventory: JokerCharges = NO_JOKERS): EconomyStat
     active: null,
     history: [],
     funBests: { withoutPurchased: 0, withPurchased: 0 },
+    funBestsOzel: { withoutPurchased: 0, withPurchased: 0 },
     totals: { earned: 0, spent: 0, gamesFinished: 0, gamesAbandoned: 0 },
     purchaseIds: [],
     owner: null,
@@ -169,6 +187,8 @@ export function startGame(
   mode: GameMode,
   inventoryAtStart: JokerCharges = NO_JOKERS,
   freeAtStart: JokerCharges = DEFAULT_FREE_JOKERS,
+  /** Aşama 8: özel bloklu Eğlence oyununun kural sürümü (GameState.funRulesVersion). */
+  funRules?: number,
 ): EconomyResult {
   if (!validId(id) || (mode !== 'klasik' && mode !== 'eglence')) return fail(state, 'invalidInput')
   if (state.active?.id === id) return { ok: true, state, stars: 0 }
@@ -176,6 +196,7 @@ export function startGame(
   const fun = mode === 'eglence'
   const brought = fun ? inventoryAtStart : NO_JOKERS
   if (!chargesOk(brought) || !chargesOk(freeAtStart)) return fail(state, 'invalidInput')
+  if (funRules !== undefined && (!fun || !Number.isSafeInteger(funRules) || funRules < 1)) return fail(state, 'invalidInput')
   // Oyuna, sahip olunandan fazla satın alınmış joker getirilemez.
   if (JOKER_KINDS.some((k) => brought[k] > state.inventory[k])) return fail(state, 'invalidInput')
   const active: ActiveGame = {
@@ -186,6 +207,7 @@ export function startGame(
     freeAtStart: fun ? { ...freeAtStart } : NO_JOKERS,
     inventoryAtStart: { ...brought },
     usage: ZERO_USAGE,
+    ...(funRules !== undefined ? { funRules, freeGranted: NO_JOKERS } : {}),
   }
   const abandoned = state.active ? 1 : 0
   return {
@@ -206,16 +228,31 @@ export function awardMove(state: EconomyState, gameId: string, moveCount: number
   if (!isCount(moveCount)) return fail(state, 'invalidInput')
   if (moveCount <= active.lastAwardedMove) return fail(state, 'staleMove')
   const added = grant(state, active, starsForMove(events))
+  const granted = luckyJokersGranted(events)
+  const freeGranted =
+    active.freeGranted && sum(granted) > 0
+      ? { cekic: active.freeGranted.cekic + granted.cekic, yenile: active.freeGranted.yenile + granted.yenile, dondur: active.freeGranted.dondur + granted.dondur }
+      : active.freeGranted
   return {
     ok: true,
     stars: added,
     state: {
       ...state,
       stars: state.stars + added,
-      active: { ...active, lastAwardedMove: moveCount, lineStars: active.lineStars + added },
+      active: { ...active, lastAwardedMove: moveCount, lineStars: active.lineStars + added, ...(freeGranted ? { freeGranted } : {}) },
       totals: { ...state.totals, earned: state.totals.earned + added },
     },
   }
+}
+
+/**
+ * Aşama 8: bir hamlede şanslı bloktan verilen ücretsiz jokerler (sınır sonrası yıldıza dönenler sayılmaz).
+ * Yalnızca awardMove içinde, hamle başına bir kez okunur (aynı hamle iki kez işlenemez).
+ */
+export function luckyJokersGranted(events: readonly GameEvent[]): JokerCharges {
+  const out: Record<JokerKind, number> = { ...NO_JOKERS }
+  for (const e of events) if (e.type === 'luckyReward' && e.reward.type === 'joker' && !e.convertedFrom) out[e.reward.joker] += 1
+  return out
 }
 
 /** Etkin oyunun joker kullanımını cüzdandan hesaplar (idempotent). Satın alınmış hak kullanıldıysa envanterden düşer. */
@@ -228,7 +265,8 @@ function usageFromWallet(active: ActiveGame, wallet: JokerWallet | null): JokerU
     return out
   }
   return {
-    free: used(active.freeAtStart, wallet.free, active.usage.free),
+    // Aşama 8: oyun içinde verilen ücretsiz jokerler de "başlangıçtaki" ücretsiz haklara eklenir.
+    free: used(withGranted(active.freeAtStart, active.freeGranted), wallet.free, active.usage.free),
     purchased: used(active.inventoryAtStart, wallet.inventory, active.usage.purchased),
   }
 }
@@ -277,13 +315,14 @@ export function finishGame(state: EconomyState, gameId: string, finalScore: numb
     endStars,
     usage: active.usage,
     usedPurchased,
+    ...(active.funRules !== undefined ? { funRules: active.funRules } : {}),
   }
-  const funBests =
-    active.mode !== 'eglence'
-      ? s.funBests
-      : usedPurchased
-        ? { ...s.funBests, withPurchased: Math.max(s.funBests.withPurchased, finalScore) }
-        : { ...s.funBests, withoutPurchased: Math.max(s.funBests.withoutPurchased, finalScore) }
+  const bump = (b: FunBests): FunBests =>
+    usedPurchased ? { ...b, withPurchased: Math.max(b.withPurchased, finalScore) } : { ...b, withoutPurchased: Math.max(b.withoutPurchased, finalScore) }
+  // Aşama 8: özel bloklu Eğlence oyunu yalnızca kendi rekorlarını günceller; eski Eğlence rekorları korunur.
+  const ozel = active.mode === 'eglence' && active.funRules !== undefined
+  const funBests = active.mode === 'eglence' && !ozel ? bump(s.funBests) : s.funBests
+  const funBestsOzel = ozel ? bump(s.funBestsOzel) : s.funBestsOzel
   return {
     ok: true,
     stars: endStars,
@@ -293,6 +332,7 @@ export function finishGame(state: EconomyState, gameId: string, finalScore: numb
       active: null,
       history: [...s.history, summary].slice(-HISTORY_LIMIT),
       funBests,
+      funBestsOzel,
       totals: { ...s.totals, earned: s.totals.earned + endStars, gamesFinished: s.totals.gamesFinished + 1 },
     },
   }

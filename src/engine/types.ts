@@ -118,6 +118,8 @@ export interface GameState {
   readonly funRulesVersion?: number
   /** Aşama 8 — yalnızca Eğlence: tahtadaki özel bloklar (hücre başına en fazla bir). */
   readonly specials?: readonly BoardSpecial[]
+  /** Aşama 8 — yalnızca Eğlence: bu oyunda şanslı bloktan verilen ücretsiz joker sayısı (en fazla 2). */
+  readonly luckyJokers?: number
 }
 
 export interface Move {
@@ -160,7 +162,10 @@ export type GameEvent =
    */
   | { type: 'exploded'; bombs: readonly number[]; cells: readonly number[]; points: number; score: number }
   /** Şanslı blok satır/sütun ya da patlamayla kaldırıldı: tek seferlik ödül. */
-  | { type: 'luckyReward'; cell: number; reward: LuckyReward; cause: 'line' | 'bomb' }
+  /**
+   * convertedFrom: oyun başı joker sınırı (2) dolduğu için joker ödülü +5 yıldıza dönüştü; reward artık yıldızdır.
+   */
+  | { type: 'luckyReward'; cell: number; reward: LuckyReward; cause: 'line' | 'bomb'; convertedFrom?: JokerKind }
   /** Çekiç özel bloğu kaldırdı: bomba söner, şanslı blok ödül vermez. */
   | { type: 'specialDefused'; kind: SpecialKind; cell: number }
 
