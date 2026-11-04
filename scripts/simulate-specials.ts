@@ -107,7 +107,6 @@ function runGame(seed: number, bot: Bot, specials: boolean, variant: Variant = '
       for (const ev of r.events) {
         if (ev.type === 'jokerUsed' && ev.source === 'free') g.freeUsedActual++
         if (ev.type === 'specialDefused') g.defused++
-        if (ev.type === 'refreshed') traySpecialsNoCount(ev.tray)
       }
       state = r.state
       const s = syncUsage(e, id, state.jokers)
@@ -148,9 +147,7 @@ function runGame(seed: number, bot: Bot, specials: boolean, variant: Variant = '
   g.score = state.score
   return g
 }
-function traySpecialsNoCount(_tray: Tray) {
-  // Yenile özel bloğu taşır; yeni tepsi sayılmaz (oran yalnızca üretilen üçlülerden ölçülür).
-}
+// Not: Yenile özel bloğu taşır; yenilenen tepsi sayılmaz (oran yalnızca üretilen üçlülerden ölçülür).
 
 function count(events: readonly GameEvent[], g: Game) {
   const lineCells = new Set<number>()
