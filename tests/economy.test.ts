@@ -15,7 +15,7 @@ import {
   type EconomyResult,
   type EconomyState,
 } from '../src/economy/ledger'
-import { FUN_STAR_CAP, JOKER_PRICES, linesCleared, starsForFinalScore, starsForLines, starsForMove } from '../src/economy/rules'
+import { luckyStars, FUN_STAR_CAP, JOKER_PRICES, linesCleared, starsForFinalScore, starsForLines, starsForMove } from '../src/economy/rules'
 import { LEASE_MS } from '../src/economy/ownership'
 import { parseEconomy, serializeEconomy } from '../src/economy/schema'
 import { ECONOMY_BACKUP_KEY, ECONOMY_KEY, createEconomyStore, createTabId, newGameId, type EconomyStore } from '../src/storage/economy'
@@ -94,10 +94,12 @@ describe('yıldız kuralları', () => {
     expect(JOKER_PRICES).toEqual({ cekic: 25, yenile: 40, dondur: 20 })
   })
 
-  it('gerçek oyunda her hamlenin yıldızı motorun temizleme olayından gelir; joker hamleleri 0 verir', () => {
+  // Aşama 8: özel bloklu Eğlence'de hamle yıldızı = hat yıldızı + şanslı blok yıldızı (ikisi de motor olayından).
+  it('gerçek oyunda her hamlenin yıldızı motorun temizleme (ve şanslı blok) olayından gelir; joker hamleleri 0 verir', () => {
     let state: GameState = newGame(11, DEFAULT_CONFIG, { mode: 'eglence' })
     let econ = ok(startGame(initialEconomy(), 'g1', 'eglence'))
     let lineStars = 0
+    let luckyTotal = 0
     let jokerResults = 0
     let clears = 0
     while (!state.gameOver && state.moveCount < 400) {
@@ -116,15 +118,16 @@ describe('yıldız kuralları', () => {
       const lines = linesCleared(r.events)
       if (lines > 0) clears++
       lineStars += starsForLines(lines)
+      luckyTotal += luckyStars(r.events)
       econ = ok(awardMove(econ, 'g1', r.state.moveCount, r.events))
       state = r.state
     }
     expect(clears).toBeGreaterThan(0)
     expect(jokerResults).toBeGreaterThan(0)
-    expect(econ.stars).toBe(lineStars)
+    expect(econ.stars).toBe(lineStars + luckyTotal)
     const end = finishGame(econ, 'g1', state.score, state.jokers)
     expect(end.ok && end.stars).toBe(starsForFinalScore(state.score))
-    expect(end.state.stars).toBe(lineStars + starsForFinalScore(state.score))
+    expect(end.state.stars).toBe(lineStars + luckyTotal + starsForFinalScore(state.score))
   })
 })
 

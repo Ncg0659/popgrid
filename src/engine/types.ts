@@ -22,7 +22,30 @@ export interface Shape {
 export interface Piece {
   readonly shapeId: string
   readonly color: Cell
+  /** Aşama 8 (yalnızca Eğlence): parçanın bir bloğu özel. Klasik'te hiç bulunmaz. */
+  readonly special?: PieceSpecial
 }
+
+/** Aşama 8 özel blok türleri: bomba ve parlayan şanslı blok. */
+export type SpecialKind = 'bomba' | 'sansli'
+
+/** Şanslı bloğun tek seferlik ödülü (üretimde belirlenir, tekrar oynatmada aynıdır). */
+export type LuckyReward =
+  | { readonly type: 'stars'; readonly amount: number }
+  | { readonly type: 'joker'; readonly joker: JokerKind }
+
+/** Tepsideki parçanın özel bloğu: hangi blok (şeklin içindeki satır, sütun) ve ne olduğu. */
+export interface PieceSpecial {
+  readonly kind: SpecialKind
+  readonly block: readonly [number, number]
+  /** Yalnızca şanslı blokta. */
+  readonly reward?: LuckyReward
+}
+
+/** Tahtadaki özel blok. Bomba: kalan başarılı yerleştirme sayısı (timer). */
+export type BoardSpecial =
+  | { readonly kind: 'bomba'; readonly cell: number; readonly timer: number }
+  | { readonly kind: 'sansli'; readonly cell: number; readonly reward: LuckyReward }
 
 /** Tepsideki üç yuva; kullanılan yuva null olur. */
 export type Tray = readonly [Piece | null, Piece | null, Piece | null]
@@ -88,6 +111,13 @@ export interface GameState {
   readonly tripleIndex: number
   readonly moveCount: number
   readonly gameOver: boolean
+  /**
+   * Aşama 8 — yalnızca Eğlence: özel blok kurallarının sürümü (1). Klasik'te ve özel bloksuz Eğlence'de yok.
+   * GENERATOR_VERSION'dan ayrıdır: parça şekil/renk sırasını değiştirmez, yalnızca Eğlence kurallarını belirtir.
+   */
+  readonly funRulesVersion?: number
+  /** Aşama 8 — yalnızca Eğlence: tahtadaki özel bloklar (hücre başına en fazla bir). */
+  readonly specials?: readonly BoardSpecial[]
 }
 
 export interface Move {
@@ -119,6 +149,20 @@ export type GameEvent =
   | { type: 'hammered'; cell: number; color: Cell }
   | { type: 'refreshed'; slots: readonly Slot[]; tray: Tray; guaranteed: boolean }
   | { type: 'rotated'; slot: Slot; from: string; to: string; paid: boolean }
+  // --- Aşama 8 (yalnızca Eğlence) ---
+  /** Özel blok tahtaya kondu (bombada başlangıç sayacı). */
+  | { type: 'specialPlaced'; kind: SpecialKind; cell: number; timer?: number }
+  /** Bu hamlede sayacı azalan ve patlamayan bombalar. */
+  | { type: 'bombTick'; bombs: ReadonlyArray<{ readonly cell: number; readonly timer: number }> }
+  /**
+   * Patlama(lar): bombs = patlayan bombaların merkezleri (sırayla), cells = temizlenen dolu hücreler (tekrarsız),
+   * points = cells.length (hücre başına +1), score = patlama sonrası toplam skor. Hat sayılmaz; kombo ve hat yıldızı vermez.
+   */
+  | { type: 'exploded'; bombs: readonly number[]; cells: readonly number[]; points: number; score: number }
+  /** Şanslı blok satır/sütun ya da patlamayla kaldırıldı: tek seferlik ödül. */
+  | { type: 'luckyReward'; cell: number; reward: LuckyReward; cause: 'line' | 'bomb' }
+  /** Çekiç özel bloğu kaldırdı: bomba söner, şanslı blok ödül vermez. */
+  | { type: 'specialDefused'; kind: SpecialKind; cell: number }
 
 export type InvalidReason = 'gameOver' | 'emptySlot' | 'doesNotFit'
 
