@@ -67,7 +67,16 @@ function traySpecials(tray: Tray, g: Game) {
   if (s?.kind === 'sansli') g.luckyTrays++
 }
 
-function runGame(seed: number, bot: Bot, specials: boolean): Game {
+/**
+ * Ayrıştırma (yalnızca simülasyon, oyun kuralı DEĞİL): hangi özelliğin etkisi ne kadar?
+ * - 'bombasiz': üretilen tepsilerdeki bombalar çıkarılır (şanslı bloklar kalır).
+ * - 'jokersiz': şanslı bloktan gelen +1 ücretsiz joker hemen geri alınır (yıldız ödülleri kalır).
+ */
+type Variant = 'tam' | 'bombasiz' | 'jokersiz'
+const stripBombs = (tray: Tray): Tray =>
+  tray.map((p) => (p?.special?.kind === 'bomba' ? { shapeId: p.shapeId, color: p.color } : p)) as unknown as Tray
+
+function runGame(seed: number, bot: Bot, specials: boolean, variant: Variant = 'tam'): Game {
   const g: Game = {
     moves: 0, score: 0, trays: 0, bombTrays: 0, luckyTrays: 0, bombsPlaced: 0, bombsExploded: 0, earlyBombs: 0, chainBombs: 0,
     blastPoints: 0, luckyPlaced: 0, luckyRewarded: 0, luckyByLine: 0, luckyByBomb: 0, defused: 0, rewardStars: 0,
@@ -77,6 +86,7 @@ function runGame(seed: number, bot: Bot, specials: boolean): Game {
   const id = `g${seed}`
   let e = startGame(initialEconomy(), id, 'eglence').state
   let state: GameState = newGame(seed, DEFAULT_CONFIG, { mode: 'eglence', specials })
+  if (variant === 'bombasiz') state = { ...state, tray: stripBombs(state.tray) }
   traySpecials(state.tray, g)
   while (!state.gameOver) {
     if (state.moveCount >= MOVE_CAP) {
@@ -107,6 +117,12 @@ function runGame(seed: number, bot: Bot, specials: boolean): Game {
     if (!r.ok) throw new Error(`hamle: ${r.reason}`)
     count(r.events, g)
     state = r.state
+    if (variant === 'bombasiz' && r.events.some((ev) => ev.type === 'newTriple')) state = { ...state, tray: stripBombs(state.tray) }
+    if (variant === 'jokersiz' && state.jokers) {
+      const free = { ...state.jokers.free }
+      for (const ev of r.events) if (ev.type === 'luckyReward' && ev.reward.type === 'joker') free[ev.reward.joker] -= 1
+      state = { ...state, jokers: { ...state.jokers, free } }
+    }
     const a = awardMove(e, id, state.moveCount, r.events)
     if (!a.ok) throw new Error(`awardMove: ${a.reason}`)
     e = a.state
@@ -236,7 +252,8 @@ function summarize(games: Game[]): Record<string, number> {
 
 const started = performance.now()
 const results: Summary[] = []
-for (const p of PROFILES) {
+const ABLATION = process.env.ABLATION === '1'
+for (const p of ABLATION ? [] : PROFILES) {
   const base: Game[] = []
   const spec: Game[] = []
   for (let seed = 1; seed <= p.games; seed++) {
@@ -248,6 +265,26 @@ for (const p of PROFILES) {
 }
 
 // ---------------------------------------------------------------------------
+if (ABLATION) {
+  const rows: string[] = ['| Profil (tohum) | Varyant | Hamle ort. | Hamle p50 · p90 | Skor ort. | Yıldız ort. | Tavana ulaşan | Şanslı joker / oyun | Hamle sınırı |', '|---|---|---:|---:|---:|---:|---:|---:|---:|']
+  const sets = [
+    { p: PROFILES[1], n: scaled(500) },
+    { p: PROFILES[2], n: Number(process.env.ABLATION_PLANNER ?? 30) },
+  ]
+  for (const { p, n } of sets) {
+    const variants: Array<[string, boolean, Variant]> = [['Önce (özel bloksuz)', false, 'tam'], ['Sonra (tam)', true, 'tam'], ['Sonra, bombasız', true, 'bombasiz'], ['Sonra, şanslı joker ödülü yok', true, 'jokersiz']]
+    for (const [label, sp, v] of variants) {
+      const games: Game[] = []
+      for (let seed = 1; seed <= n; seed++) games.push(runGame(seed, p.make(seed), sp, v))
+      const m = summarize(games)
+      rows.push(`| ${p.name} (${n}) | ${label} | ${f1(m.moves!)} | ${f0(m.movesP50!)} · ${f0(m.movesP90!)} | ${f0(m.score!)} | ${f1(m.totalStars!)} | ${pc(m.capRate!)} | ${f1(m.jokerGrants!)} | ${m.moveCapGames} |`)
+      console.log(`${p.name} ${label}: tamam (${f0((performance.now() - started) / 1000)} sn)`)
+    }
+  }
+  writeFileSync(join(import.meta.dirname, '..', 'docs', 'sim-specials-ayristirma.md'), ['# Aşama 8.2 — ayrıştırma (yalnızca simülasyon)', '', 'Kurallar değişmedi. "Bombasız" ve "şanslı joker ödülü yok" yalnızca bu ölçüm için betikte uygulanır; etkiyi ayırmak içindir. Hamle sınırı ' + MOVE_CAP + '.', '', ...rows, ''].join('\n'))
+  console.log('bitti → docs/sim-specials-ayristirma.md')
+  process.exit(0)
+}
 const L: string[] = []
 L.push('# Aşama 8.2 — Bombalı ve Parlayan Şanslı Bloklar simülasyonu', '')
 L.push(`Kaynak: \`scripts/simulate-specials.ts\`, SIM_SCALE=${SCALE}. Her tohum iki kez oynandı: **Önce** = Aşama 8 öncesi Eğlence (\`specials: false\`), **Sonra** = özel bloklu Eğlence. Aynı bot, aynı tohum (1…N), joker yalnızca sıkışınca (\`jokerRescueAction\`), ücretsiz haklar 1/1/2, satın alınmış joker yok. Yıldızlar gerçek ekonomi defteriyle (300 tavanı dahil). Hamle sınırı ${MOVE_CAP}.`, '')
