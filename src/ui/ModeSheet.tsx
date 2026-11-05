@@ -5,6 +5,7 @@ import { useDialog } from '../help/useDialog'
 import { fmtStars } from './economyUi'
 import { JokerIcon } from './JokerIcon'
 import { StarIcon } from './StarIcon'
+import { legacyRecordLines } from './specialUi'
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
@@ -15,6 +16,8 @@ interface Props {
   stars: number
   /** Satın alınmış jokerli Eğlence rekoru (0 ise gösterilmez). */
   boughtBest?: number
+  /** Aşama 8 öncesi (özel bloksuz) Eğlence rekorları: yalnızca gösterilir. */
+  legacy?: { readonly eglence: number; readonly eglenceSatin: number }
   onStart(mode: GameMode): void
   onClose(): void
   returnFocus?: () => HTMLElement | null
@@ -24,7 +27,7 @@ interface Props {
  * Yeni oyun: mod seçimi. Mod yalnızca burada, oyun başlarken seçilir; oyun ortasında değişmez.
  * Kartlardan birine dokunmak o modda yeni oyunu hemen başlatır.
  */
-export function ModeSheet({ current, bests, stars, boughtBest = 0, onStart, onClose, returnFocus }: Props) {
+export function ModeSheet({ current, bests, stars, boughtBest = 0, legacy, onStart, onClose, returnFocus }: Props) {
   const currentRef = useRef<HTMLButtonElement>(null)
   const dialog = useDialog<HTMLDivElement>(onClose, currentRef, returnFocus)
   const j = DEFAULT_FREE_JOKERS
@@ -87,10 +90,16 @@ export function ModeSheet({ current, bests, stars, boughtBest = 0, onStart, onCl
             <span className="mode-text">
               <span className="mode-name">Eğlence</span>
               <span className="mode-desc">
-                Jokerlerle: Çekiç {j.cekic}, Yenile {j.yenile}, Döndür {j.dondur}.
+                Jokerlerle: Çekiç {j.cekic}, Yenile {j.yenile}, Döndür {j.dondur}. Bombalı ve şanslı bloklar.
               </span>
               <span className="mode-best">Eğlence rekoru: {fmt(bests.eglence)}</span>
               {boughtBest > 0 && <span className="mode-best">Satın alınmış jokerli: {fmt(boughtBest)}</span>}
+              {legacy &&
+                legacyRecordLines(legacy).map((line) => (
+                  <span key={line} className="mode-best mode-best-old">
+                    {line}
+                  </span>
+                ))}
             </span>
           </button>
         </div>

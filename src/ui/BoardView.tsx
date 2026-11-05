@@ -6,6 +6,9 @@ import type { JokerFx } from '../fx/jokerEffects'
 import type { Effect } from '../fx/effects'
 import { BOARD_SIZE, CELL_COUNT, type GameState, type Slot } from '../engine/types'
 import type { Origin, Preview } from './placement'
+import { BOMB_FUSE } from '../engine/specials'
+import { SpecialMark } from './SpecialMark'
+import { previewSpecialCell, specialLabel, specialsByCell, specialsSummary } from './specialUi'
 
 interface Props {
   /** Izgara öğesi; sürükleme ölçüleri de buradan okunur. */
@@ -168,6 +171,13 @@ export function BoardView({
   const ghostColor = selected !== null ? game.tray[selected]?.color : undefined
   const filledCount = game.board.filter((c) => c !== 0).length
   const justPlaced = new Set(effect?.placed ?? [])
+  // Aşama 8.3: özel bloklar (yalnızca özel bloklu Eğlence'de dolu). Sayacı azalan bombanın sayısı bir kez zıplar.
+  const specials = specialsByCell(game.specials)
+  const ticked = new Set(effect?.ticks ?? [])
+  const ghostPiece = selected !== null ? game.tray[selected] : null
+  const ghostSpecialCell = previewSpecialCell(ghostPiece, preview?.origin)
+  const ghostSpecial = ghostPiece?.special
+  const summary = specialsSummary(game)
 
   return (
     <div className="board-frame">
@@ -178,7 +188,7 @@ export function BoardView({
         aria-label={
           hammer
             ? `Çekiç: kırılacak bloğu seç. ${filledCount} dolu hücre. Oklarla gez, Enter ile kır, Esc ile vazgeç.`
-            : `Oyun tahtası, ${filledCount} dolu hücre. ${selected === null ? 'Önce bir parça seç.' : 'Oklarla konum seç, Enter ile yerleştir.'}`
+            : `Oyun tahtası, ${filledCount} dolu hücre${summary ? `, ${summary}` : ''}. ${selected === null ? 'Önce bir parça seç.' : 'Oklarla konum seç, Enter ile yerleştir.'}`
         }
         tabIndex={0}
         data-aiming={selected !== null || undefined}
@@ -202,6 +212,8 @@ export function BoardView({
           const color = game.board[i] ?? 0
           const isGhost = ghost.has(i)
           const clearing = preview?.ok && preview.clearing.has(i)
+          const sp = color !== 0 ? specials.get(i) : undefined
+          const ghostSp = isGhost && ghostSpecialCell === i ? ghostSpecial : undefined
           return (
             <div
               key={i}
@@ -218,7 +230,12 @@ export function BoardView({
                   key={justPlaced.has(i) ? `placed-${effect?.id}` : 'block'}
                   className={justPlaced.has(i) ? 'blk fx-place' : 'blk'}
                   data-c={color}
-                />
+                  data-sp={sp?.kind}
+                  data-urgent={(sp?.kind === 'bomba' && sp.timer <= 1) || undefined}
+                  title={sp ? specialLabel(sp) : undefined}
+                >
+                  {sp && <SpecialMark special={sp} tick={ticked.has(i) ? effect?.id : undefined} />}
+                </span>
               )}
               {isGhost && (
                 <span
@@ -226,7 +243,10 @@ export function BoardView({
                   className="blk ghost"
                   data-c={ghostColor}
                   data-bad={!preview?.ok || undefined}
-                />
+                  data-sp={ghostSp?.kind}
+                >
+                  {ghostSp && <SpecialMark special={ghostSp.kind === 'bomba' ? { kind: 'bomba', timer: BOMB_FUSE } : { kind: 'sansli' }} />}
+                </span>
               )}
             </div>
           )

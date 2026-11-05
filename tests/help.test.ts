@@ -36,7 +36,8 @@ describe('yardım içeriği', () => {
   it('şu an yayındaki içerikte gelecek özelliklerden söz edilmez', () => {
     const all = JSON.stringify(visibleSections()).toLocaleLowerCase('tr-TR')
     // Jokerler Aşama 6.2 ile, yıldız ekonomisi ve mağaza Aşama 7.1–7.3 ile oyuna girdi; artık anlatılır (Aşama 7.4).
-    for (const word of ['bomba', 'şanslı', 'topluluk', 'arkadaş']) expect(all.includes(word)).toBe(false)
+    // Bombalı ve şanslı bloklar Aşama 8 ile oyuna girdi; Aşama 8.3'ten beri rehberde anlatılır (tests/asama83.test.ts).
+    for (const word of ['topluluk', 'arkadaş']) expect(all.includes(word)).toBe(false)
   })
 
   it('"döndürülemez" bilgisi Klasik Mod’a özel', () => {
@@ -123,7 +124,7 @@ const kv = (entries: Array<[string, string]>) => {
 
 describe('Aşama 7.4: Nasıl Oynanır? kurallarla birebir', () => {
   it('bölüm sırası: temel kurallar, modlar, yerleştirme, temizleme, puan, yıldızlar, bitiş, jokerler, mağaza, düğmeler, SSS', () => {
-    expect(visibleSections().map((s) => s.id)).toEqual(['kurallar', 'modlar', 'yerlestirme', 'temizleme', 'puan', 'yildizlar', 'bitis', 'jokerler', 'magaza', 'dugmeler', 'sss'])
+    expect(visibleSections().map((s) => s.id)).toEqual(['kurallar', 'modlar', 'yerlestirme', 'temizleme', 'puan', 'yildizlar', 'bitis', 'jokerler', 'ozelbloklar', 'magaza', 'dugmeler', 'sss'])
   })
 
   it('modlar: Klasik jokersiz; Eğlence ücretsiz haklar motordan (1 / 1 / 2)', () => {

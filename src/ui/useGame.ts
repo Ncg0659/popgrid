@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, getShape, giveUp as engineGiveUp, grantJokers, newGame } from '../engine'
 import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerInvalidReason, JokerKind, Slot } from '../engine/types'
-import { describeEffect, type Effect } from '../fx/effects'
+import { describeEffect, type Effect, type LuckyFx } from '../fx/effects'
 import { describeJokerFx, type JokerFx } from '../fx/jokerEffects'
 import { newGameId, type StoreFailure } from '../storage/economy'
 import { modeStore } from '../storage/mode'
@@ -21,6 +21,7 @@ import type { ArmedJoker } from './jokerUi'
 import { starsGained, type StarPulse } from './starFeedback'
 import type { EconomyApi } from './useEconomy'
 import { originFor, previewMove, type Origin, type Preview } from './placement'
+import { luckyJokerKinds, luckyNotice } from './specialUi'
 
 /** Yeni oyun tohumu: adreste ?seed=123 varsa o, yoksa tarayıcının kripto rastgeleliği (motor dışında). */
 function freshSeed(): number {
@@ -260,16 +261,26 @@ export function useGame(eco: EconomyApi): GameApi {
 
   /** Başarılı hamlenin hat yıldızı (numara motordan) ve gerekiyorsa oyun sonu ödülü. */
   const recordEconomy = useCallback(
-    (next: GameState, events: readonly GameEvent[]) => {
-      if (!trackedRef.current) return
+    (next: GameState, events: readonly GameEvent[], lucky?: readonly LuckyFx[]) => {
+      // Aşama 8.3: şanslı blok bildirimi; 300 sınırına aynı hamlede ulaşıldıysa iki bilgi tek satırda.
+      if (!trackedRef.current) {
+        const text = luckyNotice(lucky, false)
+        if (text) tellStars(text)
+        return
+      }
       const e = ecoRef.current
       const id = gameIdRef.current
       const before = e.store.load().state
       const r = e.store.recordMove(id, next, events)
       e.apply(r)
       // Yalnızca bu hamlede gerçekten kazanılan yıldız (300 sınırında kalan pay); bakiyeyle aynı kaynak.
-      if (r.ok) pulseStars('gain', starsGained(before, r.state))
-      if (r.ok && reachedCapNow(before, r.state, id)) tellStars(CAP_TEXT)
+      const gained = r.ok ? starsGained(before, r.state) : 0
+      if (r.ok) pulseStars('gain', gained)
+      // 300 sınırı önceden dolduysa (yıldız eklenmedi) şanslı yıldız sözü verilmez; joker ödülü yine söylenir.
+      const luckyText = luckyNotice(lucky, gained > 0)
+      const capNow = r.ok && reachedCapNow(before, r.state, id)
+      const text = [luckyText, capNow ? CAP_TEXT : null].filter(Boolean).join(' ')
+      if (text) tellStars(text)
       if (next.gameOver) finishEconomy(next)
     },
     [finishEconomy, tellStars, pulseStars],
@@ -312,9 +323,16 @@ export function useGame(eco: EconomyApi): GameApi {
     (p: Preview | null): boolean => {
       if (!p?.ok || !p.next) return false
       effectId.current += 1
-      setEffect(describeEffect(effectId.current, gameRef.current.board, p.events))
+      const fx = describeEffect(effectId.current, gameRef.current.board, p.events)
+      setEffect(fx)
       setGame(p.next)
-      recordEconomy(p.next, p.events)
+      recordEconomy(p.next, p.events, fx.lucky)
+      // Şanslı bloktan gelen joker: hak sayısı bir kez zıplar (mağazadaki satın alma ile aynı geri bildirim).
+      const won = luckyJokerKinds(fx.lucky)
+      if (won.length > 0) {
+        pulseId.current += 1
+        setJokerBump({ id: pulseId.current, kinds: won })
+      }
       setSelected(null)
       setAim(null)
       setArmed(null)
