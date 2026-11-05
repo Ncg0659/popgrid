@@ -12,9 +12,16 @@ export type SoundCue =
   | { readonly kind: 'joker'; readonly joker: JokerSound }
   | { readonly kind: 'purchase' }
 
-/** Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi. */
+/**
+ * Her başarılı hamlede tek ses: temizleme varsa temizleme arpeji, yoksa yerleştirme sesi.
+ * Aşama 8.3: hat olmadan bomba patlarsa da temizleme sesi çalar (tek hat gibi; zincirde iki hat gibi).
+ * Klasik'te patlama olmadığı için Klasik sesleri birebir aynıdır.
+ */
 export function moveCue(effect: Effect): SoundCue {
-  return effect.lines > 0 ? { kind: 'clear', lines: effect.lines, combo: effect.combo } : { kind: 'place' }
+  if (effect.lines > 0) return { kind: 'clear', lines: effect.lines, combo: effect.combo }
+  const blasts = effect.blasts?.length ?? 0
+  if (blasts > 0) return { kind: 'clear', lines: blasts >= 2 ? 2 : 1, combo: 0 }
+  return { kind: 'place' }
 }
 
 /** Joker sesi: yalnızca joker gerçekten uygulandığında (JokerFx yalnızca başarılı sonuçta oluşur). */

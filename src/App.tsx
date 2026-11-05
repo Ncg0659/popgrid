@@ -268,6 +268,7 @@ export default function App() {
         bests={g.bests}
         stars={eco.state.stars}
         boughtBest={g.boughtBest}
+        legacy={g.legacyFunBests}
         onStart={startMode}
         onClose={() => setOverlay('none')}
         returnFocus={restartButton}

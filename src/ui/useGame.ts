@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_CONFIG, NO_JOKERS, applyJoker, getShape, giveUp as engineGiveUp, grantJokers, newGame } from '../engine'
 import type { GameEvent, GameMode, GameState, JokerAction, JokerCharges, JokerInvalidReason, JokerKind, Slot } from '../engine/types'
-import { describeEffect, type Effect } from '../fx/effects'
+import { describeEffect, type Effect, type LuckyFx } from '../fx/effects'
 import { describeJokerFx, type JokerFx } from '../fx/jokerEffects'
 import { newGameId, type StoreFailure } from '../storage/economy'
 import { modeStore } from '../storage/mode'
-import { loadBest, restoreBest, saveBest } from '../storage/records'
+import { loadBest, restoreBest, saveBest, type RecordKind } from '../storage/records'
+import { FUN_RULES_VERSION } from '../engine/specials'
 import {
   CAP_TEXT,
   finishedGameStars,
@@ -20,6 +21,7 @@ import type { ArmedJoker } from './jokerUi'
 import { starsGained, type StarPulse } from './starFeedback'
 import type { EconomyApi } from './useEconomy'
 import { originFor, previewMove, type Origin, type Preview } from './placement'
+import { luckyJokerKinds, luckyNotice } from './specialUi'
 
 /** Yeni oyun tohumu: adreste ?seed=123 varsa o, yoksa tarayıcının kripto rastgeleliği (motor dışında). */
 function freshSeed(): number {
@@ -47,6 +49,11 @@ function initialMode(): GameMode {
  * Eğlence: oyun başına ücretsiz haklar (motorun varsayılanı) + oyuna getirilen satın alınmış haklar.
  * Satın alınmış haklar YALNIZCA ekonomi defterine kayıtlı oyuna getirilir (tek kaynak: src/storage/economy.ts).
  */
+/** Aşama 8: Eğlence oyunları özel bloklu (motorun varsayılanı); defterde kural sürümüyle kaydedilir. */
+const funRulesFor = (mode: GameMode): number | undefined => (mode === 'eglence' ? FUN_RULES_VERSION : undefined)
+/** Aşama 8: Eğlence rekoru artık özel bloklu Eğlence'nin ayrı anahtarındadır; eski Eğlence rekoru korunur, yazılmaz. */
+const recordKindFor = (mode: GameMode): RecordKind => (mode === 'eglence' ? 'eglenceOzel' : 'klasik')
+
 function createGame(mode: GameMode, inventory: JokerCharges = NO_JOKERS): GameState {
   if (mode === 'klasik') return newGame(freshSeed())
   return newGame(freshSeed(), DEFAULT_CONFIG, { mode, inventory })
@@ -86,8 +93,10 @@ export interface GameApi {
   /** Bu oyunun rekor kategorisindeki rekor (Eğlence'de satın alınmış joker kullanılınca ayrı kategori). */
   readonly best: number
   readonly bests: Bests
-  /** Satın alınmış jokerli Eğlence rekoru (ekonomi defteri, funBests.withPurchased). */
+  /** Satın alınmış jokerli Eğlence rekoru (Aşama 8: özel bloklu Eğlence, ekonomi defteri funBestsOzel.withPurchased). */
   readonly boughtBest: number
+  /** Aşama 8 öncesi Eğlence rekorları (yalnızca okunur; yeni oyunlar bunlara yazmaz). */
+  readonly legacyFunBests: { readonly eglence: number; readonly eglenceSatin: number }
   /** Bu oyun başladığında geçerli olan (normal) rekor. */
   readonly bestAtStart: number
   /** Bu oyunun rekor kategorisi, etiketi ve "yeni rekor" durumu (HUD ve oyun sonu kartı). */
@@ -170,9 +179,11 @@ export function useGame(eco: EconomyApi): GameApi {
   })
   // Oyuna getirilen satın alınmış haklar: kullanılıp kullanılmadığı bundan anlaşılır (rekor kategorisi).
   const inventoryAtStartRef = useRef<JokerCharges>(initial.inventory)
-  const [boughtBestAtStart, setBoughtBestAtStart] = useState(() => eco.state.funBests.withPurchased)
+  const [boughtBestAtStart, setBoughtBestAtStart] = useState(() => eco.state.funBestsOzel.withPurchased)
   const [game, setGameState] = useState<GameState>(initial.game)
-  const [bests, setBests] = useState<Bests>(() => ({ klasik: loadBest('klasik'), eglence: loadBest('eglence') }))
+  const [bests, setBests] = useState<Bests>(() => ({ klasik: loadBest('klasik'), eglence: loadBest(recordKindFor('eglence')) }))
+  // Aşama 8 öncesi Eğlence rekorları: yalnızca okunur (arayüzde "eski rekor" olarak gösterilebilir), değişmez.
+  const [legacyFunBests] = useState(() => ({ eglence: loadBest('eglence'), eglenceSatin: eco.state.funBests.withPurchased }))
   const [bestAtStart, setBestAtStart] = useState<number>(() => bests[game.mode])
   const [selected, setSelected] = useState<Slot | null>(null)
   const [aim, setAim] = useState<Origin | null>(null)
@@ -225,7 +236,7 @@ export function useGame(eco: EconomyApi): GameApi {
   // İlk oyunu deftere kaydet (StrictMode'da efekt iki kez çalışsa da aynı kimlik: ikinci çağrı etkisiz).
   useEffect(() => {
     const e = ecoRef.current
-    const r = e.store.startGame(initial.id, initial.mode, initial.inventory)
+    const r = e.store.startGame(initial.id, initial.mode, initial.inventory, undefined, funRulesFor(initial.mode))
     trackedRef.current = r.ok
     e.apply(r)
   }, [initial])
@@ -250,16 +261,26 @@ export function useGame(eco: EconomyApi): GameApi {
 
   /** Başarılı hamlenin hat yıldızı (numara motordan) ve gerekiyorsa oyun sonu ödülü. */
   const recordEconomy = useCallback(
-    (next: GameState, events: readonly GameEvent[]) => {
-      if (!trackedRef.current) return
+    (next: GameState, events: readonly GameEvent[], lucky?: readonly LuckyFx[]) => {
+      // Aşama 8.3: şanslı blok bildirimi; 300 sınırına aynı hamlede ulaşıldıysa iki bilgi tek satırda.
+      if (!trackedRef.current) {
+        const text = luckyNotice(lucky, false)
+        if (text) tellStars(text)
+        return
+      }
       const e = ecoRef.current
       const id = gameIdRef.current
       const before = e.store.load().state
       const r = e.store.recordMove(id, next, events)
       e.apply(r)
       // Yalnızca bu hamlede gerçekten kazanılan yıldız (300 sınırında kalan pay); bakiyeyle aynı kaynak.
-      if (r.ok) pulseStars('gain', starsGained(before, r.state))
-      if (r.ok && reachedCapNow(before, r.state, id)) tellStars(CAP_TEXT)
+      const gained = r.ok ? starsGained(before, r.state) : 0
+      if (r.ok) pulseStars('gain', gained)
+      // 300 sınırı önceden dolduysa (yıldız eklenmedi) şanslı yıldız sözü verilmez; joker ödülü yine söylenir.
+      const luckyText = luckyNotice(lucky, gained > 0)
+      const capNow = r.ok && reachedCapNow(before, r.state, id)
+      const text = [luckyText, capNow ? CAP_TEXT : null].filter(Boolean).join(' ')
+      if (text) tellStars(text)
       if (next.gameOver) finishEconomy(next)
     },
     [finishEconomy, tellStars, pulseStars],
@@ -268,7 +289,7 @@ export function useGame(eco: EconomyApi): GameApi {
   const mode = game.mode
   const usedPurchased = purchasedUsedInGame(game, inventoryAtStartRef.current)
   const category = recordCategory(mode, usedPurchased)
-  const boughtBest = eco.state.funBests.withPurchased
+  const boughtBest = eco.state.funBestsOzel.withPurchased
   const record =
     category === 'eglenceSatin'
       ? recordView(category, game.score, boughtBestAtStart, boughtBest)
@@ -286,14 +307,14 @@ export function useGame(eco: EconomyApi): GameApi {
     if (usedPurchased) {
       if (bests.eglence > bestAtStart) {
         setBests((b) => ({ ...b, eglence: bestAtStart }))
-        restoreBest(bestAtStart, 'eglence')
+        restoreBest(bestAtStart, recordKindFor('eglence'))
       }
       return
     }
     // Rekor modun kendi anahtarına yazılır; Klasik ve Eğlence birbirini etkilemez.
     if (game.score > bests[game.mode]) {
       setBests((b) => ({ ...b, [game.mode]: game.score }))
-      saveBest(game.score, game.mode)
+      saveBest(game.score, recordKindFor(game.mode))
     }
   }, [game.score, game.mode, bests, usedPurchased, bestAtStart])
 
@@ -302,9 +323,16 @@ export function useGame(eco: EconomyApi): GameApi {
     (p: Preview | null): boolean => {
       if (!p?.ok || !p.next) return false
       effectId.current += 1
-      setEffect(describeEffect(effectId.current, gameRef.current.board, p.events))
+      const fx = describeEffect(effectId.current, gameRef.current.board, p.events)
+      setEffect(fx)
       setGame(p.next)
-      recordEconomy(p.next, p.events)
+      recordEconomy(p.next, p.events, fx.lucky)
+      // Şanslı bloktan gelen joker: hak sayısı bir kez zıplar (mağazadaki satın alma ile aynı geri bildirim).
+      const won = luckyJokerKinds(fx.lucky)
+      if (won.length > 0) {
+        pulseId.current += 1
+        setJokerBump({ id: pulseId.current, kinds: won })
+      }
       setSelected(null)
       setAim(null)
       setArmed(null)
@@ -383,7 +411,7 @@ export function useGame(eco: EconomyApi): GameApi {
     const e = ecoRef.current
     const id = newGameId()
     let inventory = inventoryFor(next, e)
-    const r = e.store.startGame(id, next, inventory)
+    const r = e.store.startGame(id, next, inventory, undefined, funRulesFor(next))
     if (!r.ok) inventory = NO_JOKERS
     gameIdRef.current = id
     trackedRef.current = r.ok
@@ -391,7 +419,7 @@ export function useGame(eco: EconomyApi): GameApi {
     setGameStars(null)
     setStarNotice(null)
     inventoryAtStartRef.current = inventory
-    setBoughtBestAtStart(e.store.load().state.funBests.withPurchased)
+    setBoughtBestAtStart(e.store.load().state.funBestsOzel.withPurchased)
     setGame(createGame(next, inventory))
     setEffect(null)
     setBestAtStart(bests[next])
@@ -407,6 +435,7 @@ export function useGame(eco: EconomyApi): GameApi {
     mode,
     best,
     bests,
+    legacyFunBests,
     boughtBest,
     bestAtStart,
     record,

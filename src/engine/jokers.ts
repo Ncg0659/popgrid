@@ -13,6 +13,7 @@
 import { canPlaceAnywhere, shapeCellsAt } from './board'
 import { RESCUE_DRAWS, drawColor, drawShape } from './generator'
 import { createRng, mixSeed } from './rng'
+import { carrySpecial, defuseAt, rotateSpecial } from './specials'
 import { SHAPES, getShape } from './shapes'
 import {
   BOARD_SIZE,
@@ -194,7 +195,9 @@ export function refreshTray(state: GameState): RefreshResult {
 
   const tray = [...state.tray] as Array<Piece | null>
   slots.forEach((slot, i) => {
-    tray[slot] = fresh[i] ?? null
+    const piece = fresh[i]
+    // Aşama 8: yuvadaki özel blok yeni parçaya geçer (yalnızca özel bloklu Eğlence'de vardır).
+    tray[slot] = piece ? carrySpecial(state.tray[slot] ?? null, piece) : null
   })
   return { tray: tray as unknown as Tray, slots, guaranteed }
 }
@@ -299,6 +302,12 @@ export function applyJoker(state: GameState, action: JokerAction): JokerResult {
       events.push({ type: 'jokerUsed', joker: 'cekic', source: paid.source })
       events.push({ type: 'hammered', cell, color })
       next = { ...state, board, jokers: paid.wallet }
+      // Aşama 8: Çekiç özel bloğu kaldırır — bomba patlamadan söner, şanslı blok ödül vermez.
+      if (state.specials !== undefined) {
+        const defused = defuseAt(state.specials, cell)
+        if (defused.event) events.push(defused.event)
+        next = { ...next, specials: defused.specials }
+      }
       break
     }
     case 'yenile': {
@@ -333,7 +342,10 @@ export function applyJoker(state: GameState, action: JokerAction): JokerResult {
         events.push({ type: 'jokerUsed', joker: 'dondur', source: paid.source })
       }
       const tray = [...state.tray] as Array<Piece | null>
-      tray[slot] = { shapeId: to, color: piece.color }
+      // Aşama 8: özel blok aynı fiziksel blokta kalır.
+      tray[slot] = piece.special
+        ? { shapeId: to, color: piece.color, special: rotateSpecial(piece.special, getShape(piece.shapeId)) }
+        : { shapeId: to, color: piece.color }
       const rotatePaid = [...state.rotatePaid] as [boolean, boolean, boolean]
       rotatePaid[slot] = true
       events.push({ type: 'rotated', slot, from: piece.shapeId, to, paid: !alreadyPaid })

@@ -56,9 +56,22 @@ export function linesCleared(events: readonly GameEvent[]): number {
   return lines
 }
 
-/** Bir hamlenin yıldız ödülü (yalnızca hat temizleme). */
+/**
+ * Aşama 8: bir hamlede şanslı bloklardan gelen yıldız (yalnızca özel bloklu Eğlence'de olay üretilir).
+ * Bomba patlaması hat sayılmaz ve kendi başına yıldız vermez.
+ */
+export function luckyStars(events: readonly GameEvent[]): number {
+  let stars = 0
+  for (const e of events) if (e.type === 'luckyReward' && e.reward.type === 'stars') stars += e.reward.amount
+  return stars
+}
+
+/**
+ * Bir hamlenin yıldız ödülü: hat temizleme + (Aşama 8) şanslı blok yıldızı. Tek yoldan verilir (awardMove):
+ * aynı hamle iki kez ödüllendirilmez ve Eğlence'nin oyun başı tavanı (FUN_STAR_CAP) ikisine birlikte uygulanır.
+ */
 export function starsForMove(events: readonly GameEvent[]): number {
-  return starsForLines(linesCleared(events))
+  return starsForLines(linesCleared(events)) + luckyStars(events)
 }
 
 export function priceOf(kind: JokerKind): number {

@@ -90,7 +90,7 @@ export interface EconomyStore {
   heartbeat(): StoreResult
   /** Sahipliği bırakır (sayfa kapanırken). */
   release(): void
-  startGame(id: string, mode: GameMode, inventoryAtStart?: JokerCharges, freeAtStart?: JokerCharges): StoreResult
+  startGame(id: string, mode: GameMode, inventoryAtStart?: JokerCharges, freeAtStart?: JokerCharges, funRules?: number): StoreResult
   /** Hamle ödülü; hamle numarası doğrudan motorun durumundan alınır (K3). */
   recordMove(gameId: string, next: GameState, events: readonly GameEvent[]): StoreResult
   awardMove(gameId: string, moveCount: number, events: readonly GameEvent[]): StoreResult
@@ -204,7 +204,7 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
       const next = releaseOwnership(current.state, tabId)
       if (next !== current.state) write(next)
     },
-    startGame: (id, mode, inventoryAtStart, freeAtStart) => run((s) => startGame(s, id, mode, inventoryAtStart, freeAtStart)),
+    startGame: (id, mode, inventoryAtStart, freeAtStart, funRules) => run((s) => startGame(s, id, mode, inventoryAtStart, freeAtStart, funRules)),
     recordMove: (gameId, next, events) => run((s) => awardMove(s, gameId, next.moveCount, events)),
     awardMove: (gameId, moveCount, events) => run((s) => awardMove(s, gameId, moveCount, events)),
     useJoker(gameId, game, action) {

@@ -80,7 +80,8 @@ export function Tray({
         const canRotate = rotatable.includes(slot)
         const free = !!rotatePaid[slot]
         const blocks = getShape(piece.shapeId).cells.length
-        let label = `Parça ${slot + 1}, ${blocks} blok${fits ? '' : ', hiçbir yere sığmıyor'}`
+        const special = piece.special ? (piece.special.kind === 'bomba' ? ', bombalı' : ', şanslı bloklu') : ''
+        let label = `Parça ${slot + 1}, ${blocks} blok${special}${fits ? '' : ', hiçbir yere sığmıyor'}`
         if (rotateMode) label += canRotate ? (free ? ', döndürmek için seç (ücretsiz)' : ', döndürmek için seç') : ', döndürülemez'
         return (
           <button

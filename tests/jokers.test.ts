@@ -16,6 +16,7 @@ import {
   validateCharges,
 } from '../src/engine/jokers'
 import { createRng, type Rng } from '../src/engine/rng'
+import { assignSpecials } from '../src/engine/specials'
 import { SHAPES, getShape } from '../src/engine/shapes'
 import type { Board, GameState, JokerAction, JokerCharges, Move, Piece, Tray } from '../src/engine/types'
 import { greedyBot, jokerRescueAction } from '../scripts/bot'
@@ -139,10 +140,12 @@ describe('Klasik Mod değişmedi', () => {
     }
   })
 
-  it('jokersiz Eğlence oyunu, Klasik ile hamle hamle aynı tahta, parça ve skoru verir', () => {
+  // Aşama 8: bu eşitlik özel bloksuz Eğlence için geçerlidir (specials: false = Aşama 8 öncesi Eğlence).
+  // Özel bloklu Eğlence için ayrı beklenti: tests/specials.test.ts ("parça şekil/renk sırası Klasik ile aynı").
+  it('jokersiz ve özel bloksuz Eğlence oyunu, Klasik ile hamle hamle aynı tahta, parça ve skoru verir', () => {
     for (const seed of [1, 7, 42, 99]) {
       let a = newGame(seed)
-      let b = newGame(seed, DEFAULT_CONFIG, fun(NO_JOKERS))
+      let b = newGame(seed, DEFAULT_CONFIG, { ...fun(NO_JOKERS), specials: false })
       while (!a.gameOver) {
         const move = greedyBot(a)!
         expect(greedyBot(b)).toEqual(move)
@@ -340,7 +343,8 @@ describe('Yenile', () => {
       s = ok(applyJoker(s, { type: 'yenile' })).state
       s = withTray(s, ['dot', 'dot', 'dot'])
       for (const slot of [0, 1, 2] as const) s = ok(play(s, { slot, row: 0, col: slot * 2 })).state
-      const expected = generateTriple(seed, 1, s.board, s.score, SHARED_SEQUENCE_CONFIG).tray
+      // Aşama 8: sıradaki üçlü = normal üçlü + aynı (ayrı) tohumla atanan özel blok. Yenile ikisini de kaydırmaz.
+      const expected = assignSpecials(seed, 1, generateTriple(seed, 1, s.board, s.score, SHARED_SEQUENCE_CONFIG).tray)
       expect(s.tray).toEqual(expected)
       expect(s.tripleIndex).toBe(1)
     }

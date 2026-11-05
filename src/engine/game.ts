@@ -1,9 +1,10 @@
 import { canPlaceAnywhere, clearLines, emptyBoard, findFullLines, placeCells, shapeCellsAt } from './board'
 import { DEFAULT_CONFIG, GENERATOR_VERSION, generateTriple } from './generator'
 import { scoreMove } from './scoring'
-import { DEFAULT_FREE_JOKERS, NO_JOKERS, initialRotatePaid, nextRotatePaid, resolveEnd, validateCharges } from './jokers'
+import { DEFAULT_FREE_JOKERS, NO_JOKERS, grantJokers, initialRotatePaid, nextRotatePaid, resolveEnd, validateCharges } from './jokers'
 import { getShape } from './shapes'
-import type { Board, GameEvent, GameMode, GameState, GeneratorConfig, JokerCharges, Move, PlayResult, Tray } from './types'
+import { FUN_RULES_VERSION, assignSpecials, placedSpecial, resolveSpecials } from './specials'
+import type { Board, GameEvent, GameMode, GameState, GeneratorConfig, JokerCharges, JokerWallet, LuckyReward, Move, PlayResult, Tray } from './types'
 
 /** Tepside kalan hiçbir parça tahtaya sığmıyorsa true. */
 export function isStuck(board: Board, tray: Tray): boolean {
@@ -17,13 +18,21 @@ export interface GameOptions {
   readonly freeJokers?: JokerCharges
   /** Eğlence Modu: kalıcı envanterden bu oyuna getirilen haklar. Varsayılan 0. */
   readonly inventory?: JokerCharges
+  /**
+   * Aşama 8 — Eğlence Modu: bombalı ve şanslı bloklar. Varsayılan açık. false: Aşama 8 öncesi Eğlence oyunu
+   * (özel blok yok, durum ve parmak izi eskisiyle aynı). Klasik'te yok sayılır.
+   */
+  readonly specials?: boolean
 }
 
 export function newGame(seed: number, config: GeneratorConfig = DEFAULT_CONFIG, options: GameOptions = {}): GameState {
   const board = emptyBoard()
-  const { tray } = generateTriple(seed >>> 0, 0, board, 0, config)
   const mode: GameMode = options.mode ?? 'klasik'
+  const specials = mode === 'eglence' && options.specials !== false
+  const raw = generateTriple(seed >>> 0, 0, board, 0, config).tray
+  const tray = specials ? assignSpecials(seed >>> 0, 0, raw) : raw
   return {
+    ...(specials ? { funRulesVersion: FUN_RULES_VERSION, specials: [], luckyJokers: 0 } : {}),
     generatorVersion: GENERATOR_VERSION,
     mode,
     jokers:
@@ -63,19 +72,44 @@ export function play(state: GameState, move: Move): PlayResult {
   const events: GameEvent[] = []
   let board = placeCells(state.board, cells, piece.color)
   events.push({ type: 'placed', slot: move.slot, shapeId: piece.shapeId, color: piece.color, cells })
+  // Aşama 8: yalnızca özel bloklu Eğlence oyununda (state.specials tanımlı). Klasik hiç girmez.
+  const withSpecials = state.specials !== undefined
+  const newSpecial = withSpecials ? placedSpecial(piece, move.row, move.col) : null
+  if (newSpecial) {
+    events.push(
+      newSpecial.kind === 'bomba'
+        ? { type: 'specialPlaced', kind: 'bomba', cell: newSpecial.cell, timer: newSpecial.timer }
+        : { type: 'specialPlaced', kind: 'sansli', cell: newSpecial.cell },
+    )
+  }
 
   const lines = findFullLines(board)
   const lineCount = lines.rows.length + lines.cols.length
+  let lineCells: readonly number[] = []
   if (lineCount > 0) {
     const cleared = clearLines(board, lines)
     board = cleared.board
+    lineCells = cleared.cells
     events.push({ type: 'cleared', rows: lines.rows, cols: lines.cols, cells: cleared.cells })
   }
 
   const { breakdown, combo } = scoreMove(shape.cells.length, lineCount, state.combo)
-  const score = state.score + breakdown.total
+  let score = state.score + breakdown.total
   events.push({ type: 'scored', breakdown, score })
   if (combo >= 2) events.push({ type: 'combo', combo })
+
+  let specials = state.specials
+  let jokers = state.jokers
+  let luckyJokers = state.luckyJokers
+  if (withSpecials) {
+    const outcome = resolveSpecials(board, state.specials ?? [], newSpecial, new Set(lineCells), score, state.luckyJokers ?? 0)
+    board = outcome.board
+    specials = outcome.specials
+    luckyJokers = outcome.luckyJokers
+    score += outcome.points
+    jokers = grantLuckyJokers(jokers, outcome.rewards)
+    events.push(...outcome.events)
+  }
 
   const nextTray = state.tray.map((p, i) => (i === move.slot ? null : p)) as unknown as Tray
   let tray: Tray = nextTray
@@ -83,7 +117,7 @@ export function play(state: GameState, move: Move): PlayResult {
   if (tray.every((p) => p === null)) {
     tripleIndex += 1
     const triple = generateTriple(state.seed, tripleIndex, board, score, state.config)
-    tray = triple.tray
+    tray = withSpecials ? assignSpecials(state.seed, tripleIndex, triple.tray) : triple.tray
     events.push({ type: 'newTriple', tripleIndex, tray, rescued: triple.rescued })
   }
 
@@ -95,6 +129,7 @@ export function play(state: GameState, move: Move): PlayResult {
     combo,
     tripleIndex,
     moveCount: state.moveCount + 1,
+    ...(withSpecials ? { specials, jokers, luckyJokers } : {}),
     rotatePaid: nextRotatePaid(state.rotatePaid ?? initialRotatePaid(), move.slot, tripleIndex !== state.tripleIndex),
   }
 
@@ -117,6 +152,8 @@ export function fingerprint(state: GameState): string {
   const parts: unknown[] = [state.board, state.tray, state.score, state.combo, state.tripleIndex, state.moveCount, state.gameOver]
   // Klasik parmak izi eskisiyle birebir aynı kalır; Eğlence Modu joker durumunu da ekler.
   if (state.mode === 'eglence') parts.push(state.jokers, state.refreshCount, state.rotatePaid, state.stuck)
+  // Aşama 8: özel bloklu Eğlence oyununda özel bloklar ve kural sürümü de (özel bloksuz Eğlence eskisiyle aynı).
+  if (state.specials !== undefined) parts.push(state.funRulesVersion ?? null, state.specials, state.luckyJokers ?? 0)
   const text = JSON.stringify(parts)
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {
@@ -124,4 +161,12 @@ export function fingerprint(state: GameState): string {
     h = Math.imul(h, 0x01000193)
   }
   return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+/** Şanslı bloktan gelen +1 ücretsiz joker(ler)i bu oyunun cüzdanına ekler (kalıcı envantere değil). */
+function grantLuckyJokers(wallet: JokerWallet | null, rewards: readonly LuckyReward[]): JokerWallet | null {
+  if (!wallet) return wallet
+  let free = wallet.free
+  for (const r of rewards) if (r.type === 'joker') free = grantJokers(free, { [r.joker]: 1 })
+  return free === wallet.free ? wallet : { ...wallet, free }
 }

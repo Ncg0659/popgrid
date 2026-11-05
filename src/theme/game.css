@@ -2792,3 +2792,261 @@ button {
     transition: none;
   }
 }
+
+/* =====================================================================
+ * Aşama 8.3 — Bombalı ve şanslı bloklar (yalnızca özel bloklu Eğlence oyununda görünür).
+ * Hepsi CSS + küçük SVG: görsel dosya yok. Renk tek başına bilgi taşımaz: bombada sayı, şanslıda yıldız şekli.
+ * Canlanan yalnızca transform/opacity'dir; hiçbiri dokunmayı ya da sürüklemeyi engellemez.
+ * Hareketi azalt: genel kural bütün animasyonları kapatır; işaretler, sayılar ve bildirimler durağan görünür.
+ * ===================================================================== */
+
+/* Şanslı blok: parlak altın plastik + beyaz yıldız. */
+.blk[data-sp='sansli'] {
+  --c: #ffbf1f;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 35% 22%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, #ffe58a 0%, #ffc531 45%, #f39a12 100%);
+  box-shadow:
+    inset 0 calc(var(--u) * -0.12) 0 #d9790b,
+    inset 0 calc(var(--u) * 0.06) 0 #fff4c2,
+    0 0 0 calc(var(--u) * 0.05) rgba(255, 255, 255, 0.85),
+    0 calc(var(--u) * 0.05) calc(var(--u) * 0.18) rgba(243, 154, 18, 0.55);
+}
+
+/* Parıltı: yavaş, tek bant (yalnızca transform). */
+.blk[data-sp='sansli']::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.75) 50%, rgba(255, 255, 255, 0) 100%);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: lucky-shine 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes lucky-shine {
+  0%, 55% { transform: translateX(-140%) skewX(-18deg); }
+  85%, 100% { transform: translateX(300%) skewX(-18deg); }
+}
+
+.sp-star {
+  position: absolute;
+  inset: 17%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+.sp-star svg {
+  width: 100%;
+  height: 100%;
+  fill: #fff;
+  stroke: #c96a00;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 calc(var(--u) * 0.03) 0 rgba(150, 70, 0, 0.45));
+}
+
+/* Bomba: bloğun üstünde parlak yuvarlak bomba; ortada kalan hamle sayısı. */
+.sp-bomb {
+  position: absolute;
+  inset: 13%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(60% 50% at 34% 28%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(circle at 50% 55%, #5b3d9e 0%, #3a2470 62%, #24124d 100%);
+  box-shadow:
+    inset 0 calc(var(--u) * -0.06) 0 rgba(20, 6, 50, 0.45),
+    0 calc(var(--u) * 0.04) calc(var(--u) * 0.06) rgba(30, 10, 70, 0.4);
+}
+
+/* Fitil ve kıvılcım (sağ üst). */
+.sp-fuse {
+  position: absolute;
+  right: 2%;
+  top: -10%;
+  width: 26%;
+  height: 26%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffe066 40%, #ff8a3d 70%, rgba(255, 138, 61, 0) 72%);
+  animation: fuse-spark 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes fuse-spark {
+  from { transform: scale(0.8); opacity: 0.8; }
+  to { transform: scale(1.15); opacity: 1; }
+}
+
+.sp-timer {
+  display: block;
+  font-size: calc(var(--u) * 0.44);
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 calc(var(--u) * 0.03) 0 rgba(20, 6, 50, 0.7);
+}
+
+/* Son hamle: bomba mercan olur ve beyaz halka alır (renk + halka + sayı "1"). */
+.blk[data-urgent] .sp-bomb {
+  background:
+    radial-gradient(60% 50% at 34% 28%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(circle at 50% 55%, #ff7a8a 0%, #ff4560 60%, #c81e3d 100%);
+  box-shadow:
+    0 0 0 calc(var(--u) * 0.06) #fff,
+    0 0 0 calc(var(--u) * 0.11) rgba(255, 69, 96, 0.55);
+  animation: bomb-urgent 0.9s ease-in-out infinite;
+}
+
+@keyframes bomb-urgent {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* Sayaç azaldı: sayı bir kez zıplar. */
+.fx-tick {
+  animation: tick-bump 280ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes tick-bump {
+  0% { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+
+/* Patlama: 3×3 alanda sıcak parlama + beyaz şok halkası; zincirde her bomba sırayla. */
+.fx-blast {
+  position: relative;
+  border-radius: 22%;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(255, 250, 225, 0.95) 0%, rgba(255, 210, 80, 0.75) 35%, rgba(255, 92, 112, 0.35) 62%, rgba(255, 92, 112, 0) 74%);
+  will-change: transform, opacity;
+  animation: blast-glow 440ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.fx-blast::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: calc(var(--u) * 0.12) solid #fff;
+  opacity: 0;
+  animation: blast-ring 440ms ease-out both;
+  animation-delay: inherit;
+}
+
+@keyframes blast-glow {
+  0% { opacity: 0; transform: scale(0.35); }
+  25% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+@keyframes blast-ring {
+  0% { opacity: 0.9; transform: scale(0.3); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+/* Şanslı ödül çipi: hücreden yükselip solar. Hücre ölçüsünü bozmaz (içerik mutlak konumlu). */
+.fx-lucky {
+  position: relative;
+  min-width: 0;
+  z-index: 2;
+}
+
+.fx-lucky > b {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: max(12px, calc(var(--u) * 0.36));
+  font-weight: 900;
+  color: var(--ink);
+  background: linear-gradient(180deg, #ffe58a, #ffc531);
+  box-shadow: 0 0 0 2px #fff, 0 3px 0 #d9790b;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: lucky-float 1300ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: inherit;
+}
+
+.fx-lucky[data-joker] > b {
+  background: linear-gradient(180deg, #c9f7ff, #6fe1ec);
+  box-shadow: 0 0 0 2px #fff, 0 3px 0 #149aa6;
+}
+
+@keyframes lucky-float {
+  0% { opacity: 0; transform: translateY(6px) scale(0.7); }
+  15% { opacity: 1; transform: translateY(0) scale(1.06); }
+  25% { transform: translateY(-4px) scale(1); }
+  80% { opacity: 1; transform: translateY(-110%); }
+  100% { opacity: 0; transform: translateY(-150%); }
+}
+
+.cheer-blast {
+  margin-top: 4px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--c2);
+  color: #fff;
+  font-size: calc(var(--board) * 0.06);
+  font-weight: 900;
+  box-shadow: 0 3px 0 #c81e3d, 0 0 0 2px #fff;
+}
+
+/* Hareketi azalt: patlama alanı ve ödül çipi yerinde görünür, yalnızca solar (büyüme, uçuş, parıltı yok). */
+@media (prefers-reduced-motion: reduce) {
+  .fx-blast {
+    animation: fade-out 900ms linear both !important;
+    transform: none;
+    outline: calc(var(--u) * 0.08) solid #fff;
+    outline-offset: calc(var(--u) * -0.08);
+  }
+
+  .fx-blast::before {
+    display: none;
+  }
+
+  .fx-lucky > b {
+    animation: fade-out 1800ms linear both !important;
+    transform: translateY(-60%);
+  }
+}
+
+/* Önceki (özel bloksuz) Eğlence rekorları: daha soluk, ama okunur. */
+.mode-best-old {
+  color: var(--ink-soft);
+  font-size: 0.92em;
+}
+
+/* Tepsideki küçük parçada bomba sayısı okunur kalsın: bomba bloğu biraz taşar, sayı en az 9 px. */
+.tray .sp-bomb {
+  inset: -12%;
+}
+
+.tray .sp-timer {
+  font-size: max(9px, calc(var(--u) * 0.64));
+}
+
+.tray .sp-star {
+  inset: 8%;
+}
+
+.fx-lucky[data-edge='l'] > b {
+  left: 0;
+  translate: 0 -50%;
+}
+
+.fx-lucky[data-edge='r'] > b {
+  left: auto;
+  right: 0;
+  translate: 0 -50%;
+}

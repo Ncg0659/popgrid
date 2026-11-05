@@ -9,6 +9,7 @@
 import { DEFAULT_FREE_JOKERS, clearBasePoints, scoreMove } from '../engine'
 import type { JokerKind } from '../engine/types'
 import { FUN_STAR_CAP, JOKER_PRICES, LINE_CLEAR_STARS, STARS_PER_HUNDRED_POINTS } from '../economy/rules'
+import { BOMB_FUSE, LUCKY_JOKER_CAP, LUCKY_JOKER_OVERFLOW_STARS } from '../engine/specials'
 
 export type Availability = 'oyunda' | 'planlanan'
 
@@ -191,6 +192,27 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
         ],
       },
       { kind: 'replayJokerIntro' },
+    ],
+  },
+  {
+    // Aşama 8.3: sayılar motorun sabitlerinden (metin oyunla çelişmesin).
+    id: 'ozelbloklar',
+    title: 'Bombalı ve şanslı bloklar (Eğlence Modu)',
+    availability: 'oyunda',
+    blocks: [
+      { kind: 'text', text: 'Eğlence Modu’nda bazı parçaların bir bloğu özeldir. Klasik Mod’da özel blok yoktur.' },
+      {
+        kind: 'list',
+        items: [
+          `Bomba: üstündeki sayı kalan hamle sayısıdır. Tahtaya konduğu hamle sayılmaz; ${BOMB_FUSE} hamle sonra patlar ve çevresindeki 3×3 alanı temizler (dolu hücre başına +1 puan). Son hamlede bomba mercan renge döner.`,
+          'Bomba bir satır ya da sütunla birlikte temizlenirse hemen patlar. Patlama başka bir bombaya değerse o da patlar (zincir).',
+          'Patlama hat sayılmaz: kombo ve hat yıldızı vermez.',
+          'Şanslı blok: altın renkli, üstünde yıldız var. Satır, sütun ya da patlamayla kaldırılınca tek seferlik ödül verir: yıldız ya da bu oyun için bir joker.',
+          `Bir oyunda şanslı bloktan en çok ${LUCKY_JOKER_CAP} joker gelir. Sınır dolduktan sonra joker yerine +${LUCKY_JOKER_OVERFLOW_STARS} yıldız verilir; ekranda nedeni yazar.`,
+          'Çekiç bombayı söndürür; şanslı bloğu Çekiç’le kırarsan ödül verilmez.',
+          'Bombalı ve şanslı bloklu Eğlence rekorları ayrı tutulur; önceki (özel bloksuz) Eğlence rekorların silinmez, mod seçiminde görünür.',
+        ],
+      },
     ],
   },
   {

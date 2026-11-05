@@ -42,7 +42,8 @@ export function FxCanvas({ effect, boardRef, reducedMotion, jokerFx = null }: Pr
       ps.clear()
       return
     }
-    if (reducedMotion || effect.cleared.length === 0) return
+    const blasted = effect.blasted ?? []
+    if (reducedMotion || (effect.cleared.length === 0 && blasted.length === 0)) return
     const board = boardRef.current
     if (!board) return
     colors.current ??= blockColors()
@@ -54,6 +55,11 @@ export function FxCanvas({ effect, boardRef, reducedMotion, jokerFx = null }: Pr
     for (const b of effect.cleared) {
       const p = cellCenter(box, b.cell)
       ps.burst(p.x, p.y, p.size, colors.current[b.color] ?? '#ffffff', perCell, power, b.delay)
+    }
+    // Aşama 8.3: bomba patlaması — hücre başına az parçacık (zincirde 64 hücreye kadar çıkabilir; telefonda hafif kalsın).
+    for (const b of blasted) {
+      const p = cellCenter(box, b.cell)
+      ps.burst(p.x, p.y, p.size, colors.current[b.color] ?? '#ffffff', 2, 1.15, b.delay)
     }
   }, [effect, boardRef, reducedMotion])
 

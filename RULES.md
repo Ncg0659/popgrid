@@ -20,6 +20,7 @@ Bu dosya POPGRID'in değişmez kurallarıdır. Kod değiştirmeden önce okunur.
 8. Motor eski durumu değiştirmez; `play(durum, hamle)` yeni durum ve olay listesi döndürür. Arayüz ve animasyonlar yalnızca olaylara tepki verir.
 9. Motorda `Math.random` yasaktır (ESLint ve test ile denetlenir). Tüm rastgelelik `src/engine/rng.ts` üzerinden, tohumludur.
 10. Belirlenim sözleşmesi: **aynı seed + aynı hamleler = birebir aynı tahta, parçalar ve skor.** Bu sözleşmeyi değiştiren her değişiklik `GENERATOR_VERSION`'ı artırır.
+    **İstisna (yalnızca Eğlence Modu):** parça şekil ve renk sırasını değiştirmeyen, yalnızca Eğlence Modu'nun kurallarını değiştiren değişiklikler (ör. Aşama 8 bombalı ve şanslı bloklar) `GENERATOR_VERSION` yerine `FUN_RULES_VERSION`'ı artırır. Bu durumda da belirlenim korunur (aynı seed + aynı hamleler + aynı `FUN_RULES_VERSION` = aynı oyun); Klasik Mod, `GENERATOR_VERSION` ve iki golden test (`8f8b8146`, seed 12345 üçlü dizisi) değişmez.
 11. Görsel efektler ayrı, tohumsuz rastgelelik kullanır; oyun akışının rastgeleliğini asla tüketmez.
 
 ## Deneyim
