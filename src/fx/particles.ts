@@ -30,22 +30,45 @@ export class ParticleSystem {
   private frame = 0
   private last = 0
   private dpr = 1
+  /** Son okunan pencere boyutu (CSS px). Her karede değil, yalnızca gerektiğinde okunur (Aşama 9.2). */
+  private viewW = 0
+  private viewH = 0
+  /** Pencere boyutu değişti (döndürme, adres çubuğu): bir sonraki karede yeniden okunur. */
+  private sizeDirty = true
+  private readonly onResize = (): void => {
+    this.sizeDirty = true
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
+    window.addEventListener('resize', this.onResize, { passive: true })
   }
 
   get active(): number {
     return this.particles.length
   }
 
+  /** Bileşen kaldırılırken: döngüyü durdurur ve pencere dinleyicisini bırakır. */
+  destroy(): void {
+    this.clear()
+    window.removeEventListener('resize', this.onResize)
+  }
+
+  /**
+   * Tuvali pencere boyutuna getirir. window.innerWidth okumak, sayfada stil değişmişse tarayıcıyı stil ve
+   * yerleşimi hemen hesaplamaya zorlar; bu yüzden her karede değil, yalnızca efekt başlarken ve pencere
+   * boyutu değiştiğinde okunur (Aşama 9.2 ölçümü: 4× CPU'da efekt boyunca kare başına birkaç ms).
+   */
   private resize(): void {
     // Ölçüm: tam ekran tuvali 2x çözünürlükte çizmek yavaş telefonda ~8 fps'e mal oluyordu.
     // Parçacıklar küçük ve hızlı olduğu için 1x çözünürlük gözle fark edilmez.
     this.dpr = 1
-    const w = Math.round(window.innerWidth * this.dpr)
-    const h = Math.round(window.innerHeight * this.dpr)
+    this.sizeDirty = false
+    this.viewW = window.innerWidth
+    this.viewH = window.innerHeight
+    const w = Math.round(this.viewW * this.dpr)
+    const h = Math.round(this.viewH * this.dpr)
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w
       this.canvas.height = h
@@ -77,6 +100,7 @@ export class ParticleSystem {
       })
     }
     if (!this.frame) {
+      // Efekt başlarken bir kez okunur (bu an zaten tahta ölçülürken stil hesaplanmış durumdadır).
       this.resize()
       this.last = performance.now()
       this.frame = requestAnimationFrame(this.tick)
@@ -99,9 +123,9 @@ export class ParticleSystem {
       this.clear()
       return
     }
-    this.resize()
+    if (this.sizeDirty) this.resize()
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
-    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+    ctx.clearRect(0, 0, this.viewW, this.viewH)
     const s = dt / 1000
     const alive: Particle[] = []
     for (const p of this.particles) {
@@ -131,7 +155,7 @@ export class ParticleSystem {
     ctx.globalAlpha = 1
     this.particles = alive
     this.frame = alive.length ? requestAnimationFrame(this.tick) : 0
-    if (!alive.length) ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+    if (!alive.length) ctx.clearRect(0, 0, this.viewW, this.viewH)
   }
 }
 

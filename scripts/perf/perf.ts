@@ -118,7 +118,7 @@ async function runOnce(browser: Any, name: ScenarioName, rate: number, opts: { t
   const d = r.f.slice(1).map((t, i) => t - r.f[i]!)
   // En uzun ana iş parçacığı görevi (iz kaydı varsa): kare süresinden daha hassas (16,7 ms basamağı yok).
   const maxTask = tasks.length ? Math.max(...tasks.map((t) => t.ms)) : null
-  return { maxTask, maxFrame: Math.max(...d), over50: d.filter((x) => x > 50).length, frames: d.length, p95: quantile(d, 0.95), longTasks: r.lt, tasks, prof }
+  return { maxTask, maxFrame: Math.max(...d), over50: d.filter((x) => x > 50).length, over25: d.filter((x) => x > 25).length, frames: d.length, p95: quantile(d, 0.95), longTasks: r.lt, tasks, prof }
 }
 
 const N = Number(process.env.N ?? 3)
@@ -135,7 +135,7 @@ for (const rate of rates)
     const med = quantile(runs.map((x) => x.maxFrame), 0.5)
     const tasksMs = runs.map((x) => x.maxTask).filter((x): x is number => x !== null)
     console.log(
-      `[${label}] CPU ${rate}× ${s.padEnd(6)} | en uzun kare medyan ${med.toFixed(0)} ms (koşular ${runs.map((x) => x.maxFrame.toFixed(0)).join('/')}) | 50 ms+ kare ${runs.map((x) => x.over50).join('/')} | uzun görevler ${runs.map((x) => `[${x.longTasks.join(',')}]`).join(' ')}`,
+      `[${label}] CPU ${rate}× ${s.padEnd(6)} | en uzun kare medyan ${med.toFixed(0)} ms (koşular ${runs.map((x) => x.maxFrame.toFixed(0)).join('/')}) | 50 ms+ kare ${runs.map((x) => x.over50).join('/')} | 25 ms+ kare ${runs.map((x) => x.over25).join('/')} | uzun görevler ${runs.map((x) => `[${x.longTasks.join(',')}]`).join(' ')}`,
     )
     if (tasksMs.length) console.log(`     en uzun görev (iz kaydı) medyan ${quantile(tasksMs, 0.5).toFixed(1)} ms (koşular ${tasksMs.join('/')})`)
     if (process.env.TRACE !== 'all') for (const t of runs[0]!.tasks) console.log(`     görev ${t.ms} ms (${t.trigger}): ${JSON.stringify(t.top)}`)
