@@ -224,19 +224,31 @@ export function BoardView({
               // değişiklikte ek stil hesabı yapılmasın).
               data-empty={(hammer && color === 0) || undefined}
             >
-              {color !== 0 && (
-                <span
-                  // Yeni yerleşen bloğun anahtarı her hamlede değişir; zıplama animasyonu yeniden başlar.
-                  key={justPlaced.has(i) ? `placed-${effect?.id}` : 'block'}
-                  className={justPlaced.has(i) ? 'blk fx-place' : 'blk'}
-                  data-c={color}
-                  data-sp={sp?.kind}
-                  data-urgent={(sp?.kind === 'bomba' && sp.timer <= 1) || undefined}
-                  title={sp ? specialLabel(sp) : undefined}
-                >
-                  {sp && <SpecialMark special={sp} tick={ticked.has(i) ? effect?.id : undefined} />}
-                </span>
-              )}
+              {color !== 0 &&
+                (() => {
+                  const block = (
+                    <span
+                      key="block"
+                      className="blk"
+                      data-c={color}
+                      data-sp={sp?.kind}
+                      data-urgent={(sp?.kind === 'bomba' && sp.timer <= 1) || undefined}
+                      title={sp ? specialLabel(sp) : undefined}
+                    >
+                      {sp && <SpecialMark special={sp} tick={ticked.has(i) ? effect?.id : undefined} />}
+                    </span>
+                  )
+                  // Yeni yerleşen blok: zıplama animasyonu dış kapta (Aşama 9.1). Blok durağan kalır; böylece
+                  // tarayıcı her animasyonda bloğun ağır gölge/degrade stilini yeniden hesaplamaz.
+                  // Kabın anahtarı her hamlede değişir; animasyon yeniden başlar.
+                  return justPlaced.has(i) ? (
+                    <span key={`placed-${effect?.id}`} className="fx-place">
+                      {block}
+                    </span>
+                  ) : (
+                    block
+                  )
+                })()}
               {isGhost && (
                 <span
                   key={preview?.ok ? 'ok' : `bad-${rejectCount}`}

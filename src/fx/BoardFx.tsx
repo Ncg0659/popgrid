@@ -42,14 +42,16 @@ export function BoardFx({ effect, reducedMotion }: Props) {
             <span
               // Aynı hücre hem satırda hem patlamada olamaz (motor önce satırı temizler); yine de anahtar sırayla tekil.
               key={`${k}-${b.cell}`}
-              className="blk fx-pop"
-              data-c={b.color}
+              // Aşama 9.1: animasyon dış kapta, blok kopyası içinde durağan (görünüm aynı, stil hesabı çok daha ucuz).
+              className="fx-pop"
               style={{
                 gridRow: Math.floor(b.cell / BOARD_SIZE) + 1,
                 gridColumn: (b.cell % BOARD_SIZE) + 1,
                 animationDelay: `${b.delay}ms`,
               }}
-            />
+            >
+              <span className="blk" data-c={b.color} />
+            </span>
           ))}
           {blasts.map((b) => (
             <span
