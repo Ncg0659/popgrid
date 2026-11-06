@@ -99,8 +99,20 @@ animasyonsuz ≈4 ms).
 - Kap, bloğun kutusuyla aynıdır; dönüşüm merkezi, ölçek ve opaklık birebir aynı kalır.
 - Etkilenen seçiciler (`.cell > .blk`, temizlenecek satır parlaması, Çekiç hedefleri) kaplı blok için de yazıldı.
 
-Sonuçlar için Aşama 9.1 raporuna bakın. Henüz yapılmayanlar (ayrı onayla): parçacık katmanının her karede pencere
-boyutunu okuması, şanslı ödül bırakışındaki yerleşim hesabı, React'te gereksiz yeniden çizimler.
+Sonuçlar için Aşama 9.1 raporuna bakın.
+
+### Aşama 9.2 — parçacık katmanı (Canvas)
+
+- Parçacık döngüsü her karede `window.innerWidth/innerHeight` okuyordu. Sayfada o karede stil değişmişse (patlama
+  animasyonları başlarken) bu okuma tarayıcıyı stil ve yerleşimi hemen hesaplamaya zorlar.
+- Artık pencere boyutu yalnızca efekt başlarken ve `resize` olayından sonra okunur; temizleme önbellekteki boyutla
+  yapılır. Bileşen kaldırılınca dinleyici bırakılır (`destroy`).
+- Çizim davranışı aynıdır: eski ve yeni sınıf, aynı rastgele dizi ve aynı kare zamanlarıyla birebir aynı çizim
+  komutlarını üretti. `tests/particles.test.ts` okuma sayısını ve döndürmede yeniden okumayı sınar.
+- `perf.ts` çıktısında "25 ms+ kare" sayısı da var: efekt boyunca takılan kareleri gösterir (en uzun kare çoğunlukla
+  bırakma anındadır ve bu değişiklikten etkilenmez).
+
+Henüz yapılmayanlar (ayrı onayla): şanslı ödül bırakışındaki yerleşim hesabı, React'te gereksiz yeniden çizimler.
 
 ## iPhone'da gerçek ölçüm (isteğe bağlı, ücretsiz)
 

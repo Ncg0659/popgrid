@@ -32,7 +32,7 @@ export function FxCanvas({ effect, boardRef, reducedMotion, jokerFx = null }: Pr
 
   useEffect(() => {
     if (canvasRef.current) system.current = new ParticleSystem(canvasRef.current)
-    return () => system.current?.clear()
+    return () => system.current?.destroy()
   }, [])
 
   useEffect(() => {
