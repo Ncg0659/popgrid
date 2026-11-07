@@ -14,9 +14,19 @@
  * - 2 → 3 (Aşama 8): özel bloklu Eğlence alanları — etkin oyunda funRules ve freeGranted, biten oyunda funRules,
  *   ayrı rekorlar funBestsOzel. Eski kayıtta yoktur: etkin/biten oyun "Aşama 8 öncesi" sayılır, funBestsOzel 0'dır.
  *   Diğer bütün alanlar aynen taşınır. İlk yazmada kayıt 3 olur.
+ * - 3 → 4 (Aşama 10.2): goals (görevler, seri, sayaçlar), rewardIds, totals.rewardEarned. Eski kayıtta yoktur:
+ *   boş görev durumu, boş kimlik listesi ve 0 olarak taşınır (geriye dönük rekor taraması ilk işlemde yapılır).
+ *   Diğer bütün alanlar aynen taşınır.
+ *
+ * Şema 4'te bozuk goals alanı: YALNIZCA görev durumu sıfırlanır (goalsReset: true); bakiye, envanter ve
+ * rewardIds korunur. Verilmiş ödüller rewardIds'te kaldığı için sıfırlama çift ödüle yol açmaz.
+ * Bozuk rewardIds ya da rewardEarned ise bütün kayıt 'corrupt' sayılır (çift ödül koruması tahminle onarılmaz).
  */
 import { JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameMode, JokerCharges } from '../engine/types'
+import { DAILY_POOLS, DAILY_REWARDS, DAILY_TIERS, GOALS_CATALOG_VERSION, type DailyKind } from './goalsCatalog'
+import { initialGoals, isDayKey, type DailyMission, type GoalCounters, type GoalsState } from './goals'
+import { parseRewardId } from './rewards'
 import {
   ECONOMY_SCHEMA_VERSION,
   HISTORY_LIMIT,
@@ -36,6 +46,8 @@ export type EconomyLoadStatus = 'empty' | 'ok' | 'migrated' | 'corrupt' | 'futur
 export interface EconomyLoad {
   readonly state: EconomyState
   readonly status: EconomyLoadStatus
+  /** Aşama 10.2: kayıt geçerliydi ama görev durumu bozuktu ve yalnızca o sıfırlandı. */
+  readonly goalsReset?: boolean
 }
 
 type Obj = Record<string, unknown>
@@ -112,6 +124,56 @@ function owner(v: unknown): Ownership | null | undefined {
   return tabId !== null && until !== null ? { tabId, until } : undefined
 }
 
+const COUNTER_KEYS: readonly (keyof GoalCounters)[] = ['lines', 'placed', 'games', 'bombs', 'lucky', 'maxCombo', 'bestKlasik', 'bestEglence']
+
+function mission(v: unknown, i: number): DailyMission | null {
+  if (!isObj(v)) return null
+  const tier = DAILY_TIERS[i]
+  if (!tier || v.tier !== tier) return null
+  const kind = v.kind as DailyKind
+  // Hedef ve tür katalogdaki bir şablonla eşleşmeli; ödül kataloğun ödülü olmalı (kayıttan ödül şişirilemez).
+  if (!DAILY_POOLS[tier].some((t) => t.kind === kind && t.target === v.target)) return null
+  if (v.reward !== DAILY_REWARDS[tier]) return null
+  const progress = count(v.progress, v.target as number)
+  return progress === null ? null : { tier, kind, target: v.target as number, reward: DAILY_REWARDS[tier], progress }
+}
+
+/** Görev durumu; geçersizse null (çağıran yalnızca görevleri sıfırlar). */
+function goals(v: unknown): GoalsState | null {
+  if (!isObj(v)) return null
+  if (v.catalog !== GOALS_CATALOG_VERSION) return null
+  const day = v.day === null ? null : isDayKey(v.day) ? v.day : undefined
+  if (day === undefined) return null
+  if (!Array.isArray(v.daily) || v.daily.length !== (day === null ? 0 : DAILY_TIERS.length)) return null
+  const daily = v.daily.map(mission)
+  if (daily.some((m) => m === null)) return null
+  if (new Set(daily.map((m) => m!.kind)).size !== daily.length) return null
+  const st = isObj(v.streak) ? v.streak : null
+  const streak = st && {
+    count: count(st.count),
+    lastDay: st.lastDay === null ? null : isDayKey(st.lastDay) ? st.lastDay : undefined,
+    best: count(st.best),
+  }
+  if (!streak || streak.count === null || streak.best === null || streak.lastDay === undefined || streak.count > streak.best) return null
+  const c = isObj(v.counters) ? v.counters : null
+  if (!c) return null
+  const counters = {} as Record<keyof GoalCounters, number>
+  for (const k of COUNTER_KEYS) {
+    const n = count(c[k])
+    if (n === null) return null
+    counters[k] = n
+  }
+  if (typeof v.retroDone !== 'boolean') return null
+  return {
+    catalog: GOALS_CATALOG_VERSION,
+    day,
+    daily: daily as DailyMission[],
+    streak: { count: streak.count, lastDay: streak.lastDay, best: streak.best },
+    counters,
+    retroDone: v.retroDone,
+  }
+}
+
 /** Eski (Aşama 6.2) envanter anahtarının içeriği. Bozuksa 0. */
 export function parseLegacyInventory(raw: string | null): JokerCharges {
   if (!raw) return NO_JOKERS
@@ -153,7 +215,13 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
     spent: count(t.spent),
     gamesFinished: count(t.gamesFinished),
     gamesAbandoned: count(t.gamesAbandoned),
+    // Şema 4: zorunlu. Şema 1–3'te yoktur: 0.
+    rewardEarned: version >= 4 ? count(t.rewardEarned) : 0,
   }
+  // Şema 4: verilmiş ödül kimlikleri (çift ödül koruması) — bozuksa bütün kayıt bozuk sayılır.
+  const rewardIds = version >= 4 ? (Array.isArray(v.rewardIds) ? v.rewardIds.map((x) => (parseRewardId(x) ? (x as string) : null)) : null) : []
+  const parsedGoals = version >= 4 ? goals(v.goals) : initialGoals()
+  const goalsReset = version >= 4 && parsedGoals === null
   const purchaseIds = Array.isArray(v.purchaseIds) ? v.purchaseIds.map(id) : null
   // Sürüm 1'de sahiplik alanı yoktu: null olarak taşınır.
   const own = version === 1 ? null : owner(v.owner)
@@ -172,7 +240,10 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
     Object.values(totals).some((x) => x === null) ||
     !purchaseIds ||
     purchaseIds.some((x) => x === null) ||
-    own === undefined
+    own === undefined ||
+    !rewardIds ||
+    rewardIds.some((x) => x === null) ||
+    new Set(rewardIds).size !== rewardIds.length
   ) {
     return corrupt()
   }
@@ -189,7 +260,10 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
       totals: totals as EconomyState['totals'],
       purchaseIds: (purchaseIds as string[]).slice(-PURCHASE_ID_LIMIT),
       owner: own,
+      goals: parsedGoals ?? initialGoals(),
+      rewardIds: rewardIds as string[],
     },
+    ...(goalsReset ? { goalsReset: true } : {}),
   }
 }
 

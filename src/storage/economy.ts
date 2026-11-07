@@ -17,6 +17,11 @@
  * değiştirilebilir, silinebilir, başka cihaza taşınmaz. Bu kayıt hile koruması ya da sunucu güvenliği
  * SAĞLAMAZ; yalnızca dürüst oyunda çift ödül, yarım satın alma ve bozuk kayıtla çökme hatalarını önler.
  *
+ * Aşama 10.2 — görevler ve başarımlar aynı kayıttadır (şema 4). Her işlemden önce gün değişimi uygulanır
+ * (rollover: eski günün alınmamış tamamlanmış ödülleri bir kez eklenir, yeni görevler üretilir) ve ilk
+ * işlemde rekor anahtarlarından geriye dönük başarım sayaçları okunur. "Al" (claimReward) yalnızca kalıcı
+ * yazma başarılıysa olur. Hepsi sahip sekmede; sahip olmayan sekme görevleri okuyabilir, ilerletemez.
+ *
  * Oyun arayüzü (Aşama 7.2) bu depoyu tek kaynak olarak kullanır: src/ui/useEconomy.ts, src/ui/useGame.ts.
  * Mevcut kayıtlara dokunmaz: rekorlar, mod, eğitim, ses ve eski envanter anahtarı aynen kalır; eski envanter
  * yalnızca ekonomi kaydı hiç yokken bir kez OKUNUR (taşınır).
@@ -41,9 +46,12 @@ import {
   renewOwnership,
   type OwnershipStatus,
 } from '../economy/ownership'
+import { applyRetroactive, localDayKey } from '../economy/goals'
+import { claimReward, rollover } from '../economy/rewards'
 import { parseEconomy, serializeEconomy, type EconomyLoad } from '../economy/schema'
 import { INVENTORY_KEY } from './inventory'
 import { browserStorage } from './mode'
+import { bestKey } from './records'
 
 export const ECONOMY_KEY = 'popgrid:v1:economy'
 /** Bozuk bulunan kaydın ham hali buraya kopyalanır (inceleme ya da elle kurtarma için). */
@@ -76,6 +84,8 @@ export interface EconomyStoreOptions {
   readonly tabId: string
   /** Saat (testlerde sahte). Varsayılan Date.now. */
   readonly now?: () => number
+  /** Aşama 10.2: saatten gün anahtarı ("YYYY-MM-DD"). Varsayılan yerel tarih (testlerde sabit saat dilimi). */
+  readonly day?: (t: number) => string
 }
 
 export interface EconomyStore {
@@ -103,6 +113,11 @@ export interface EconomyStore {
    * (sonuçta intoGame: true); arayüz oyunun cüzdanına 1 ekler.
    */
   purchase(kind: JokerKind, requestId: string, intoGameId?: string): StoreResult & { readonly intoGame?: boolean }
+  /**
+   * Aşama 10.2: görev ya da başarım ödülünü alır ("Al"). Aynı kimlik ikinci kez 'duplicateReward';
+   * kalıcı yazma olmadan verilmez ('storageError').
+   */
+  claimReward(rewardId: string): StoreResult
 }
 
 /** Rastgele kimlik (oyun ya da sekme). Tohumdan TÜRETİLMEZ (K4): aynı tohum tekrar oynansa da kimlik yenidir. */
@@ -120,6 +135,7 @@ export const createTabId = (): string => randomId('t')
 export function createEconomyStore(storage: KeyValue | null, options: EconomyStoreOptions): EconomyStore {
   const { tabId } = options
   const now = options.now ?? (() => Date.now())
+  const dayOf = options.day ?? localDayKey
   // Depolama yoksa ya da yazma hata verirse: bu oturum boyunca bellekte devam edilir.
   let memory: EconomyState | null = null
 
@@ -173,8 +189,10 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
     }
     // Kalıcı olmadan yapılmaması gereken işlem (satın alma, satın alınmış joker): kayıt yoksa ya da bozulduysa hiç yapılmaz.
     if (opts.requirePersist && (storage === null || lostPersistence())) return { ok: false, state: current.state, reason: 'storageError' }
-    const result = op(current.state)
-    if (!result.ok) return result
+    // Aşama 10.2: geriye dönük rekor taraması (bir kez) ve gün değişimi — işlemden ÖNCE, aynı yazmada.
+    const prepared = prepareGoals(current.state, t)
+    const result = op(prepared)
+    if (!result.ok) return result.state === prepared ? { ...result, state: current.state } : result
     const next = renewOwnership(result.state, tabId, t)
     if (next === current.state) return { ...result, state: next, persisted: memory === null }
     const persisted = write(next)
@@ -184,6 +202,21 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
       return { ok: false, state: current.state, reason: 'storageError' }
     }
     return { ...result, state: next, persisted }
+  }
+
+  /** Rekor anahtarı (bozuksa 0). Geriye dönük başarım taraması için yalnızca OKUNUR. */
+  const readBest = (key: string): number => {
+    const n = Number(read(key) ?? 0)
+    return Number.isSafeInteger(n) && n > 0 ? n : 0
+  }
+
+  const prepareGoals = (state: EconomyState, t: number): EconomyState => {
+    let s = state
+    if (!s.goals.retroDone) {
+      const ozel = Math.max(readBest(bestKey('eglenceOzel')), s.funBestsOzel.withoutPurchased, s.funBestsOzel.withPurchased)
+      s = { ...s, goals: applyRetroactive(s.goals, { bestKlasik: readBest(bestKey('klasik')), bestEglence: ozel }) }
+    }
+    return rollover(s, dayOf(t)).state
   }
 
   const store: EconomyStore = {
@@ -237,6 +270,7 @@ export function createEconomyStore(storage: KeyValue | null, options: EconomySto
       )
       return r.ok ? { ...r, intoGame } : r
     },
+    claimReward: (rewardId) => run((s) => claimReward(s, rewardId), { requirePersist: true }),
   }
   return store
 }
