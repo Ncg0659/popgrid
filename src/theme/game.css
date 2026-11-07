@@ -23,6 +23,7 @@
   --c5: #9a5bf5; /* mor */
   --c6: #57cf45; /* yeşil */
 
+  /* Baloo 2 Variable yalnızca 400–800 kalınlıklarını içerir: 800'den kalın istemeyin (Aşama 9.3). */
   --font: 'Baloo 2 Variable', 'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif;
 
   /* Tahta ölçüleri: ekran genişliğine ve yüksekliğine sığar, kaydırma gerekmez. */
@@ -2226,7 +2227,7 @@ button {
   background: var(--c2);
   color: #fff;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -2253,7 +2254,7 @@ button {
   box-shadow: 0 2px 6px rgba(90, 60, 170, 0.18);
   color: var(--ink);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 16px;
   white-space: nowrap;
   pointer-events: none;
@@ -2906,7 +2907,7 @@ button {
 .sp-timer {
   display: block;
   font-size: calc(var(--u) * 0.44);
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
   color: #fff;
   font-variant-numeric: tabular-nums;
@@ -2987,7 +2988,7 @@ button {
   border-radius: 999px;
   white-space: nowrap;
   font-size: max(12px, calc(var(--u) * 0.36));
-  font-weight: 900;
+  font-weight: 800;
   color: var(--ink);
   background: linear-gradient(180deg, #ffe58a, #ffc531);
   box-shadow: 0 0 0 2px #fff, 0 3px 0 #d9790b;
@@ -3017,7 +3018,7 @@ button {
   background: var(--c2);
   color: #fff;
   font-size: calc(var(--board) * 0.06);
-  font-weight: 900;
+  font-weight: 800;
   box-shadow: 0 3px 0 #c81e3d, 0 0 0 2px #fff;
 }
 
