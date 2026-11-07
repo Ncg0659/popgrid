@@ -112,7 +112,30 @@ Sonuçlar için Aşama 9.1 raporuna bakın.
 - `perf.ts` çıktısında "25 ms+ kare" sayısı da var: efekt boyunca takılan kareleri gösterir (en uzun kare çoğunlukla
   bırakma anındadır ve bu değişiklikten etkilenmez).
 
-Henüz yapılmayanlar (ayrı onayla): şanslı ödül bırakışındaki yerleşim hesabı, React'te gereksiz yeniden çizimler.
+### Aşama 9.3 — yazı kalınlığı 900 → 800 (CSS düzeltmesi)
+
+- Oyunun yazı tipi **Baloo 2 Variable yalnızca 400–800** kalınlıklarını içerir. 5 kural (`.star-warn`, `.star-gain`,
+  `.sp-timer`, `.fx-lucky > b`, `.cheer-blast`) 900 istiyordu; tarayıcı zaten 800 çiziyordu. Değerler 800 yapıldı.
+  `tests/css.test.ts` CSS'te 400–800 dışında sayısal kalınlık kalmadığını denetler.
+- Gerçek yazı tipiyle (canlı sitede, Claude tarayıcı panesinde) her beş öğe için 900 ve 800 metni tuvale çizildi:
+  **0 farklı piksel**; kontrol olarak 700↔800 ise yüzlerce–binlerce piksel farklı. Öğe boyutları da birebir aynı.
+- Bu bir performans optimizasyonu değildir. Gerçek yazı tipiyle ölçüm gürültülüdür ve kazanç birkaç ms'yi geçmez.
+
+## Test ortamında eksik yazı tipi (önemli)
+
+Bu oturumdaki konteynerde npm'e erişim olmadığı için Aşama 9 ölçümleri, projenin Vite derlemesi yerine eşdeğer bir
+esbuild üretim derlemesiyle yapıldı ve bu derlemede **Baloo 2 yazı tipi yoktu** (`@fontsource` içe aktarması boş
+bırakıldı). Tarayıcı sistemin yedek yazı tipine düştü. Sonuçları:
+
+- Mutlak sayılar biraz abartılıdır: yedek yazı tipinde bir kalınlığın **ilk** kullanımı (yazı tipi eşleştirme)
+  1×'te ≈8 ms, 4×'te ≈22 ms sürdü; ikinci kullanım ≈0,2–1 ms. Aşama 9'da şanslı ödülde görülen "≈46 ms yerleşim"in
+  büyük kısmı buydu.
+- Önce/sonra karşılaştırmaları aynı derleme yöntemiyle yapıldığı için geçerlidir.
+- **Doğru yöntem:** `npm run build` ile üretilen `dist/` ölçülür (yazı tipi pakete dahildir). `scripts/perf/*` betikleri
+  `DIR=dist` ile zaten bunu ölçer. Yazı tipiyle ilgili bir sonuç çıkarılacaksa, sayfada `document.fonts` içinde
+  `Baloo 2 Variable 400 800` yüklü olduğu doğrulanmalıdır.
+
+Henüz yapılmayanlar (ayrı onayla): React'te gereksiz yeniden çizimler (Aşama 9.4).
 
 ## iPhone'da gerçek ölçüm (isteğe bağlı, ücretsiz)
 
