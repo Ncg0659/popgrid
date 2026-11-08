@@ -520,7 +520,8 @@ function report() {
     for (const tier of ['kolay', 'orta', 'zor'] as const) {
       for (const t of dailyPools(SIM_CATALOG)[tier]) {
         const k = `${tier}:${t.kind}`
-        log(`| ${tier} · ${t.kind} ${fmt(t.target)} | ${PROFILES.map((p) => { const c = mis[`${p.id}|${k}`]; return c && c[1] > 0 ? pct(c[0], c[1]) : '–' }).join(' | ')} |`)
+        const label = t.kind === 'points' ? `puan (Klasik ${fmt(t.klasik!)} / Eğlence ${fmt(t.eglence!)}, oranlı)` : `${t.kind} ${fmt(t.target)}`
+        log(`| ${tier} · ${label} | ${PROFILES.map((p) => { const c = mis[`${p.id}|${k}`]; return c && c[1] > 0 ? pct(c[0], c[1]) : '–' }).join(' | ')} |`)
       }
     }
     log()
@@ -587,11 +588,15 @@ interface SummaryRow {
   missions: Record<string, [number, number]>
 }
 
-/** Sürüm 1 ve 2 özetlerini karşılaştırır (docs/sim-goals-karsilastirma.md). */
+/**
+ * Görev hedeflerinin karşılaştırması (docs/sim-goals-karsilastirma.md):
+ *   v1  = Aşama 10.2 (tek oyunda 1.000 / 2.500 puan, zor kombo 5)
+ *   v2a = Aşama 10.3 ilk öneri (karışık toplam 1.500 / 4.000) — özet dosyası o koşudan saklandı
+ *   v2  = güncel (oranlı: orta Klasik 750 / Eğlence 2.000, zor Klasik 1.500 / Eğlence 4.000)
+ */
 function compare() {
-  const read = (v: number) => JSON.parse(readFileSync(join(CACHE, '..', `goals-summary-v${v}.json`), 'utf8')) as Record<string, SummaryRow>
-  const a = read(1)
-  const b = read(2)
+  const read = (v: string) => JSON.parse(readFileSync(join(CACHE, '..', `goals-summary-${v}.json`), 'utf8')) as Record<string, SummaryRow>
+  const runs = [read('v1'), read('v2a'), read('v2')]
   const lines: string[] = []
   const log = (x = '') => {
     lines.push(x)
@@ -602,34 +607,36 @@ function compare() {
     return c && c[1] > 0 ? c[0] / c[1] : null
   }
   const P = (x: number | null) => (x === null ? '–' : `%${Math.round(100 * x)}`)
-  log('# POPGRID — Görev hedefleri: sürüm 1 ve sürüm 2 karşılaştırması (Aşama 10.3)')
+  log('# POPGRID — Görev hedefleri karşılaştırması (Aşama 10.3)')
   log()
-  log(`Aynı oyun havuzu, aynı oyuncu tohumları, ${PLAYERS} oyuncu-yılı; tek fark günlük görev kataloğu. Başarım eşikleri iki koşuda da sürüm 2.`)
-  log('Oranlar: o görevin çıktığı oynanan günlerde tamamlanma yüzdesi.')
+  log(`Aynı oyun havuzu ve aynı oyuncu tohumları, ${PLAYERS} oyuncu-yılı; yalnızca günlük görev hedefleri farklı. Başarım eşikleri hepsinde güncel.`)
+  log('Her hücre: **eski (10.2) → karışık toplam (10.3 ilk) → oranlı (güncel)**. Oranlar: görevin çıktığı oynanan günlerde tamamlanma.')
   log()
-  const rows: Array<[string, string, string]> = [
-    ['orta · tek oyunda 1.000 puan → gün içinde toplam 1.500', 'orta:score', 'orta:scoreSum'],
-    ['zor · tek oyunda 2.500 puan → gün içinde toplam 4.000', 'zor:score', 'zor:scoreSum'],
-    ['zor · kombo 5 → kombo 4', 'zor:combo', 'zor:combo'],
+  log('- eski: orta "tek oyunda 1.000", zor "tek oyunda 2.500", zor kombo 5')
+  log('- karışık toplam: orta "gün içinde 1.500", zor "gün içinde 4.000" (modlar eşit sayılır), zor kombo 4')
+  log('- oranlı: orta "Klasik 750 ya da Eğlence 2.000", zor "Klasik 1.500 ya da Eğlence 4.000" (birlikte oranlı), zor kombo 4')
+  log()
+  const rows: Array<[string, string, string, string]> = [
+    ['Orta puan görevi', 'orta:score', 'orta:scoreSum', 'orta:points'],
+    ['Zor puan görevi', 'zor:score', 'zor:scoreSum', 'zor:points'],
+    ['Zor kombo görevi', 'zor:combo', 'zor:combo', 'zor:combo'],
   ]
   for (const skill of SKILLS) {
     log(`## ${SKILL_NAME[skill]}`)
     log()
-    log(`| Görev (eski → yeni) | ${PROFILES.map((p) => p.name).join(' | ')} |`)
+    log(`| | ${PROFILES.map((p) => p.name).join(' | ')} |`)
     log(`|---|${PROFILES.map(() => '---:').join('|')}|`)
-    for (const [name, ka, kb] of rows) {
-      log(`| ${name} | ${PROFILES.map((p) => `${P(rate(a[`${skill}|${p.id}`]!, ka))} → ${P(rate(b[`${skill}|${p.id}`]!, kb))}`).join(' | ')} |`)
-    }
-    const m = (r: SummaryRow, f: (r: SummaryRow, i: number) => number) => fmt(med(r.daily.map((_, i) => f(r, i))))
-    const perDay = (r: SummaryRow, i: number) => (r.daily[i]! + r.auto[i]!) / Math.max(1, r.playDays[i]!)
+    const cell = (p: Profile, f: (r: SummaryRow, i: number) => string) => runs.map((r, i) => f(r[`${skill}|${p.id}`]!, i)).join(' → ')
+    for (const [name, ...keys] of rows) log(`| ${name} | ${PROFILES.map((p) => cell(p, (r, i) => P(rate(r, keys[i]!)))).join(' | ')} |`)
+    const m = (f: (r: SummaryRow, i: number) => number) => (r: SummaryRow) => fmt(med(r.daily.map((_, i) => f(r, i))))
     for (const [name, f] of [
-      ['Günlük görev ★ / oynanan gün', perDay],
+      ['Günlük görev ★ / oynanan gün', (r: SummaryRow, i: number) => (r.daily[i]! + r.auto[i]!) / Math.max(1, r.playDays[i]!)],
       ['Üç görevi tamamlanan gün', (r: SummaryRow, i: number) => r.full[i]!],
       ['En uzun seri', (r: SummaryRow, i: number) => r.streak[i]!],
       ['Toplam ödül ★ (yıl)', (r: SummaryRow, i: number) => r.reward[i]!],
       ['Yıl sonu bakiye', (r: SummaryRow, i: number) => r.stars[i]!],
     ] as Array<[string, (r: SummaryRow, i: number) => number]>) {
-      log(`| ${name} | ${PROFILES.map((p) => `${m(a[`${skill}|${p.id}`]!, f)} → ${m(b[`${skill}|${p.id}`]!, f)}`).join(' | ')} |`)
+      log(`| ${name} | ${PROFILES.map((p) => cell(p, (r) => m(f)(r))).join(' | ')} |`)
     }
     log()
   }

@@ -22,6 +22,7 @@ import {
   type DailyKind,
   type DailyTier,
   dailyPools,
+  pointWeight,
 } from './goalsCatalog'
 
 export interface DailyMission {
@@ -29,8 +30,12 @@ export interface DailyMission {
   readonly kind: DailyKind
   readonly target: number
   readonly reward: number
-  /** Hedefe kadar kırpılır (en çok target). */
+  /** Hedefe kadar kırpılır (en çok target). 'points' görevinde tam sayı birimdir. */
   readonly progress: number
+  /** Yalnızca 'points': Klasik'te gereken puan (gösterim ve ağırlık). */
+  readonly klasik?: number
+  /** Yalnızca 'points': Eğlence'de gereken puan. */
+  readonly eglence?: number
 }
 
 export interface GoalCounters {
@@ -144,7 +149,8 @@ export function dailyMissions(day: string, catalog = GOALS_CATALOG_VERSION): Dai
     const pool = dailyPools(catalog)[tier].filter((t) => !used.has(t.kind))
     const pick = pool[rng.nextInt(pool.length)]!
     used.add(pick.kind)
-    out.push({ tier, kind: pick.kind, target: pick.target, reward: DAILY_REWARDS[tier], progress: 0 })
+    const pts = pick.kind === 'points' ? { klasik: pick.klasik!, eglence: pick.eglence! } : {}
+    out.push({ tier, kind: pick.kind, target: pick.target, reward: DAILY_REWARDS[tier], progress: 0, ...pts })
   }
   return out
 }
@@ -161,7 +167,7 @@ export interface Progress {
   readonly games: number
   /** Ulaşılan puan (en yüksek). */
   readonly score: number
-  /** Kazanılan puan (toplam; hamle puanı + bomba patlaması). */
+  /** Kazanılan puan (toplam; hamle puanı + bomba patlaması). 'points' görevi bunu moda göre birime çevirir. */
   readonly scoreSum: number
   readonly combo: number
   /** Tek hamlede temizlenen hat. */
@@ -207,10 +213,11 @@ export function progressFromEvents(events: readonly GameEvent[]): Progress {
   return { lines, placed, games: 0, score, scoreSum, combo, multi, bombs, lucky }
 }
 
-const SUMMED: ReadonlySet<DailyKind> = new Set(['lines', 'placed', 'games', 'scoreSum'])
+const SUMMED: ReadonlySet<DailyKind> = new Set(['lines', 'placed', 'games', 'points'])
 
-function advanceMission(m: DailyMission, p: Progress): DailyMission {
-  const value = p[m.kind]
+function advanceMission(m: DailyMission, p: Progress, mode: ModeInfo['mode']): DailyMission {
+  // Oranlı puan: kazanılan puan × oyunun modunun birim değeri (tam sayı; yuvarlama yok).
+  const value = m.kind === 'points' ? p.scoreSum * pointWeight(m, mode) : p[m.kind as Exclude<DailyKind, 'points'>]
   if (value <= 0) return m
   const next = Math.min(m.target, SUMMED.has(m.kind) ? m.progress + value : Math.max(m.progress, value))
   return next === m.progress ? m : { ...m, progress: next }
@@ -245,7 +252,7 @@ export function applyProgress(g: GoalsState, p: Progress, info: ModeInfo): Goals
     bestKlasik: info.mode === 'klasik' ? Math.max(c.bestKlasik, p.score) : c.bestKlasik,
     bestEglence: info.mode === 'eglence' && info.ozel ? Math.max(c.bestEglence, p.score) : c.bestEglence,
   }
-  const daily = g.daily.map((m) => advanceMission(m, p))
+  const daily = g.daily.map((m) => advanceMission(m, p, info.mode))
   const changed = daily.some((m, i) => m !== g.daily[i])
   let next: GoalsState = { ...g, counters, daily: changed ? daily : g.daily }
   if (next.day !== null && !allDailyDone(g) && allDailyDone(next)) next = { ...next, streak: bumpStreak(next.streak, next.day) }
@@ -271,6 +278,34 @@ export function applyRetroactive(g: GoalsState, records: { readonly bestKlasik: 
       bestKlasik: Math.max(g.counters.bestKlasik, ok(records.bestKlasik)),
       bestEglence: Math.max(g.counters.bestEglence, ok(records.bestEglence)),
     },
+  }
+}
+
+// ---------------------------------------------------------------- gösterim (arayüz için, saf)
+
+/** Bir görevin oyuncuya gösterilecek hâli. Teknik birim gösterilmez. */
+export interface MissionView {
+  readonly done: boolean
+  /** 0–100 tam sayı; 100 yalnızca tamamlanınca (aşağı yuvarlanır: %99,9 → %99). */
+  readonly percent: number
+  /** Kalan: sayı görevlerinde adet; tek oyun puanı/kombo/çoklu için hedef değeri. */
+  readonly remaining: number
+  /** Yalnızca 'points': kalan ilerlemenin Klasik ve Eğlence puanı karşılığı (yukarı yuvarlanır: yetecek puan). */
+  readonly remainingPoints?: { readonly klasik: number; readonly eglence: number }
+}
+
+export function missionView(m: DailyMission): MissionView {
+  const left = Math.max(0, m.target - m.progress)
+  const done = left === 0
+  const percent = done ? 100 : Math.min(99, Math.floor((m.progress * 100) / m.target))
+  if (m.kind !== 'points') return { done, percent, remaining: left }
+  const k = pointWeight(m, 'klasik')
+  const e = pointWeight(m, 'eglence')
+  return {
+    done,
+    percent,
+    remaining: left,
+    remainingPoints: { klasik: k > 0 ? Math.ceil(left / k) : 0, eglence: e > 0 ? Math.ceil(left / e) : 0 },
   }
 }
 

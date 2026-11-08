@@ -132,10 +132,17 @@ function mission(v: unknown, i: number, catalog: number): DailyMission | null {
   if (!tier || v.tier !== tier) return null
   const kind = v.kind as DailyKind
   // Hedef ve tür katalogdaki bir şablonla eşleşmeli; ödül kataloğun ödülü olmalı (kayıttan ödül şişirilemez).
-  if (!dailyPools(catalog)[tier].some((t) => t.kind === kind && t.target === v.target)) return null
+  // 'points' görevinde Klasik/Eğlence puan hedefleri de şablonla birebir aynı olmalı (ağırlık kayıttan değiştirilemez).
+  const tpl = dailyPools(catalog)[tier].find(
+    (t) => t.kind === kind && t.target === v.target && (kind !== 'points' || (t.klasik === v.klasik && t.eglence === v.eglence)),
+  )
+  if (!tpl) return null
+  if (kind !== 'points' && (v.klasik !== undefined || v.eglence !== undefined)) return null
   if (v.reward !== DAILY_REWARDS[tier]) return null
-  const progress = count(v.progress, v.target as number)
-  return progress === null ? null : { tier, kind, target: v.target as number, reward: DAILY_REWARDS[tier], progress }
+  const progress = count(v.progress, tpl.target)
+  if (progress === null) return null
+  const pts = kind === 'points' ? { klasik: tpl.klasik!, eglence: tpl.eglence! } : {}
+  return { tier, kind, target: tpl.target, reward: DAILY_REWARDS[tier], progress, ...pts }
 }
 
 /** Görev durumu; geçersizse null (çağıran yalnızca görevleri sıfırlar). */

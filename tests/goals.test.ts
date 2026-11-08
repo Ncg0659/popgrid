@@ -12,6 +12,8 @@ import {
   DAILY_REWARDS,
   DAILY_TIERS,
   GOALS_CATALOG_VERSION,
+  pointWeight,
+  pointsTemplate,
   type DailyKind,
 } from '../src/economy/goalsCatalog'
 import {
@@ -23,6 +25,7 @@ import {
   initialGoals,
   isDayKey,
   localDayKey,
+  missionView,
   previousDay,
   progressFromEvents,
   unlockedAchievements,
@@ -86,7 +89,7 @@ const saved = (st: Mem): EconomyState => {
 
 const cleared = (rows: number[], cols: number[] = []): GameEvent => ({ type: 'cleared', rows, cols, cells: [] })
 const placed = (): GameEvent => ({ type: 'placed', slot: 0, shapeId: 'sq1', color: 1, cells: [0] }) as GameEvent
-/** Hamle puanı = toplam puan (bu yardımcıyla tek hamlelik oyun). Sürüm 2 'scoreSum' hamle puanını toplar. */
+/** Hamle puanı = toplam puan (bu yardımcıyla tek hamlelik oyun). Sürüm 2 'points' görevi hamle puanını oranlı toplar. */
 const scored = (score: number, gained = score): GameEvent =>
   ({ type: 'scored', score, breakdown: { placement: 0, lines: 0, clearBase: 0, comboMultiplier: 1, clear: gained, total: gained } }) as GameEvent
 const ALL8 = [0, 1, 2, 3, 4, 5, 6, 7]
@@ -183,7 +186,8 @@ describe('Aşama 10.2: gün anahtarı ve günlük görevler', () => {
 
   it('bütün görev türleri Klasik Mod\'da tamamlanabilir (botla gerçek motor oyunu)', () => {
     // Karar: Eğlence'ye özel tür yok. Her şablonun hedefine Klasik oyunlarda ulaşıldığı gösterilir.
-    const best: Record<DailyKind, number> = { lines: 0, placed: 0, games: 0, score: 0, scoreSum: 0, combo: 0, multi: 0 }
+    // 'points': Klasik puanı (yalnızca Klasik oynanır) Klasik hedefiyle karşılaştırılır.
+    const best: Record<DailyKind, number> = { lines: 0, placed: 0, games: 0, score: 0, points: 0, combo: 0, multi: 0 }
     const playOut = (seed: number, bot: (s: GameState) => ReturnType<typeof greedyBot>) => {
       let s = newGame(seed, DEFAULT_CONFIG, { mode: 'klasik' })
       let lines = 0
@@ -199,7 +203,7 @@ describe('Aşama 10.2: gün anahtarı ve günlük görevler', () => {
         best.combo = Math.max(best.combo, p.combo)
         best.multi = Math.max(best.multi, p.multi)
         best.score = Math.max(best.score, p.score)
-        best.scoreSum += p.scoreSum
+        best.points += p.scoreSum
         s = r.state
       }
       best.games += 1
@@ -208,7 +212,8 @@ describe('Aşama 10.2: gün anahtarı ve günlük görevler', () => {
     }
     for (let seed = 1; seed <= 12; seed++) playOut(seed, greedyBot)
     playOut(1, plannerBot(3))
-    for (const tier of DAILY_TIERS) for (const t of DAILY_POOLS[tier]) expect(best[t.kind]).toBeGreaterThanOrEqual(t.target)
+    for (const tier of DAILY_TIERS)
+      for (const t of DAILY_POOLS[tier]) expect(best[t.kind]).toBeGreaterThanOrEqual(t.kind === 'points' ? t.klasik! : t.target)
   })
 })
 
@@ -673,15 +678,24 @@ const hasTemplate = (pool: readonly { kind: string; target: number }[], t: { kin
   pool.some((x) => x.kind === t.kind && x.target === t.target)
 
 describe('Aşama 10.3: görev kataloğu sürüm 2', () => {
-  it('yeni hedefler: orta toplam 1.500, zor toplam 4.000, zor kombo 4; ödüller aynı', () => {
+  it('yeni hedefler: orta Klasik 750 / Eğlence 2.000, zor Klasik 1.500 / Eğlence 4.000 (oranlı), zor kombo 4; ödüller aynı', () => {
     expect(GOALS_CATALOG_VERSION).toBe(2)
-    expect(hasTemplate(DAILY_POOLS.orta, { kind: 'scoreSum', target: 1500 })).toBe(true)
-    expect(hasTemplate(DAILY_POOLS.zor, { kind: 'scoreSum', target: 4000 })).toBe(true)
+    const orta = DAILY_POOLS.orta.find((t) => t.kind === 'points')!
+    const zor = DAILY_POOLS.zor.find((t) => t.kind === 'points')!
+    expect(orta).toEqual({ kind: 'points', target: 6000, klasik: 750, eglence: 2000 })
+    expect(zor).toEqual({ kind: 'points', target: 12000, klasik: 1500, eglence: 4000 })
+    // Tam sayı ağırlıklar: 1 Klasik puanı = 8 birim, 1 Eğlence puanı = 3 birim (iki görevde de).
+    for (const t of [orta, zor]) {
+      expect([pointWeight(t, 'klasik'), pointWeight(t, 'eglence')]).toEqual([8, 3])
+      expect(t.klasik! * pointWeight(t, 'klasik')).toBe(t.target)
+      expect(t.eglence! * pointWeight(t, 'eglence')).toBe(t.target)
+    }
+    expect(pointsTemplate(1000, 2500)).toEqual({ kind: 'points', target: 5000, klasik: 1000, eglence: 2500 })
     expect(hasTemplate(DAILY_POOLS.zor, { kind: 'combo', target: 4 })).toBe(true)
     // Tek oyun puanı ve kombo 5 artık üretilmez.
     for (const tier of DAILY_TIERS) for (const t of DAILY_POOLS[tier]) expect(t.kind === 'score' || (t.kind === 'combo' && t.target === 5)).toBe(false)
     // Diğer şablonlar sürüm 1 ile aynı.
-    const same = (tier: (typeof DAILY_TIERS)[number]) => DAILY_POOLS[tier].filter((t) => t.kind !== 'scoreSum' && !(tier === 'zor' && t.kind === 'combo'))
+    const same = (tier: (typeof DAILY_TIERS)[number]) => DAILY_POOLS[tier].filter((t) => t.kind !== 'points' && !(tier === 'zor' && t.kind === 'combo'))
     for (const tier of DAILY_TIERS) for (const t of same(tier)) expect(hasTemplate(DAILY_POOLS_V1[tier], t)).toBe(true)
     expect(DAILY_TIERS.map((t) => DAILY_REWARDS[t])).toEqual([10, 20, 30])
     expect(MAX_DAILY_STARS).toBe(80)
@@ -698,44 +712,93 @@ describe('Aşama 10.3: görev kataloğu sürüm 2', () => {
   it('görev üretimi sürüme bağlı ve sabit (aynı gün, aynı sürüm = aynı görevler)', () => {
     const kinds = (d: string, c?: number) => dailyMissions(d, c).map((m) => `${m.kind}:${m.target}`)
     expect(kinds('2026-11-08')).toEqual(['placed:25', 'games:2', 'combo:4'])
-    expect(kinds('2026-11-09')).toEqual(['lines:10', 'games:2', 'scoreSum:4000'])
+    expect(kinds('2026-11-09')).toEqual(['lines:10', 'games:2', 'points:12000'])
     expect(kinds('2026-11-08', 1)).toEqual(['placed:25', 'games:2', 'score:2500'])
   })
 
-  it('gün içinde toplam puan: hamle puanı + bomba patlaması; Klasik ve Eğlence birlikte; yarıda kalan oyun da sayılır', () => {
-    // Gerçek motor: bir oyunun hamle puanları toplamı oyunun puanına eşit (Klasik ve özel bloklu Eğlence).
+  it('gün içinde puan: hamle puanı + bomba patlaması tam bir kez (gerçek motor: toplam = oyun puanı)', () => {
+    let bombs = 0
     for (const mode of ['klasik', 'eglence'] as const) {
-      let s = newGame(279, DEFAULT_CONFIG, { mode })
-      let sum = 0
-      while (!s.gameOver && s.moveCount < 150 && !s.stuck) {
-        const r = play(s, greedyBot(s)!)
-        if (!r.ok) break
-        sum += progressFromEvents(r.events).scoreSum
-        s = r.state
+      for (const seed of [279, 300, 7]) {
+        let s = newGame(seed, DEFAULT_CONFIG, { mode })
+        let sum = 0
+        while (!s.gameOver && s.moveCount < 250 && !s.stuck) {
+          const r = play(s, greedyBot(s)!)
+          if (!r.ok) break
+          const p = progressFromEvents(r.events)
+          sum += p.scoreSum
+          bombs += p.bombs
+          s = r.state
+        }
+        expect(sum).toBe(s.score)
+        expect(sum).toBeGreaterThan(0)
       }
-      expect(sum).toBe(s.score)
-      expect(sum).toBeGreaterThan(0)
     }
-    // Defter: iki moddan oyunlar aynı günün toplamına girer; bitirilmeden bırakılan oyunun puanı da.
-    clock.t = Date.UTC(2026, 10, 9, 10) // 9 Kasım: zor görev "toplam 4.000"
+    // Bomba patlaması gerçekten denendi (patlama puanı hamle puanına ikinci kez eklenmedi).
+    expect(bombs).toBeGreaterThan(0)
+  })
+
+  it('oranlı puan: Klasik ve Eğlence aynı göreve katkı sağlar; yarıda kalan oyun sayılır; aynı hamle iki kez sayılmaz', () => {
+    clock.t = Date.UTC(2026, 10, 9, 10) // 9 Kasım: zor görev "Klasik 1.500 ya da Eğlence 4.000"
     const st = memoryStorage()
     const store = owned(st)
+    const zor = () => saved(st).goals.daily[2]!
+    expect(store.heartbeat().ok).toBe(true)
+    expect(zor()).toMatchObject({ kind: 'points', target: 12000, klasik: 1500, eglence: 4000, progress: 0 })
+    expect(missionView(zor())).toEqual({ done: false, percent: 0, remaining: 12000, remainingPoints: { klasik: 1500, eglence: 4000 } })
+    // Klasik 600 puan = %40.
     expect(store.startGame('k1', 'klasik').ok).toBe(true)
-    expect(store.awardMove('k1', 1, [placed(), scored(1500)]).ok).toBe(true)
-    expect(store.finishGame('k1', 1500, null).ok).toBe(true)
+    expect(store.awardMove('k1', 1, [placed(), scored(600)]).ok).toBe(true)
+    expect(store.finishGame('k1', 600, null).ok).toBe(true)
+    expect(missionView(zor())).toMatchObject({ percent: 40, remainingPoints: { klasik: 900, eglence: 2400 } })
+    // Eğlence 2.000 hamle puanı + 300 bomba puanı = 2.300 → %57,5; oyun bitirilmeden bırakılır.
     expect(store.startGame('e1', 'eglence', undefined, undefined, 1).ok).toBe(true)
     expect(store.awardMove('e1', 1, [placed(), scored(2000), { type: 'exploded', bombs: [3], cells: [], points: 300, score: 2300 }]).ok).toBe(true)
-    // e1 bitirilmeden yeni oyun başlar (yarıda bırakıldı): puanı yine sayılır.
-    expect(store.startGame('k2', 'klasik').ok).toBe(true)
-    expect(store.awardMove('k2', 1, [placed(), scored(150)]).ok).toBe(true)
-    const zor = saved(st).goals.daily[2]!
-    expect(zor).toMatchObject({ kind: 'scoreSum', target: 4000, progress: 3950 })
+    expect(store.startGame('k2', 'klasik').ok).toBe(true) // e1 yarıda bırakıldı: puanı sayılmış olarak kalır
+    expect(zor().progress).toBe(600 * 8 + 2300 * 3)
+    expect(missionView(zor())).toMatchObject({ done: false, percent: 97, remainingPoints: { klasik: 38, eglence: 100 } })
     expect(store.claimReward(dailyRewardId('2026-11-09', 2))).toMatchObject({ ok: false, reason: 'notClaimable' })
-    expect(store.awardMove('k2', 2, [placed(), scored(200, 50)]).ok).toBe(true)
-    expect(saved(st).goals.daily[2]!.progress).toBe(4000) // hedefte kırpılır
-    expect(store.claimReward(dailyRewardId('2026-11-09', 2))).toMatchObject({ ok: true, stars: 30 })
+    // Kalan Klasik puanı: 37 yetmez, 38 yeter (gösterilen "kalan" yukarı yuvarlanır).
+    expect(store.awardMove('k2', 1, [placed(), scored(37)]).ok).toBe(true)
+    expect(missionView(zor())).toMatchObject({ done: false, percent: 99, remainingPoints: { klasik: 1, eglence: 2 } })
     // Aynı hamle ikinci kez bildirilirse puan iki kez sayılmaz.
-    expect(store.awardMove('k2', 2, [placed(), scored(200, 50)])).toMatchObject({ ok: false, reason: 'staleMove' })
+    expect(store.awardMove('k2', 1, [placed(), scored(37)])).toMatchObject({ ok: false, reason: 'staleMove' })
+    expect(zor().progress).toBe(11996)
+    expect(store.awardMove('k2', 2, [placed(), scored(137, 100)]).ok).toBe(true)
+    expect(zor().progress).toBe(12000) // hedefte kırpılır
+    expect(missionView(zor())).toEqual({ done: true, percent: 100, remaining: 0, remainingPoints: { klasik: 0, eglence: 0 } })
+    expect(store.claimReward(dailyRewardId('2026-11-09', 2))).toMatchObject({ ok: true, stars: 30 })
+    expect(store.claimReward(dailyRewardId('2026-11-09', 2))).toMatchObject({ ok: false, reason: 'duplicateReward' })
+  })
+
+  it('oranlı puan saf hesap: yalnızca Klasik, yalnızca Eğlence ya da karışık — hepsi aynı hedefe tam sayıyla ulaşır', () => {
+    const day = '2026-11-09'
+    const base: GoalsState = { ...initialGoals(), day, daily: dailyMissions(day) }
+    const run = (parts: Array<['klasik' | 'eglence', number]>) =>
+      parts.reduce((g, [mode, pts]) => applyProgress(g, { ...NO_PROGRESS, scoreSum: pts }, { mode, ozel: mode === 'eglence' }), base).daily[2]!
+    expect(missionView(run([['klasik', 1500]])).done).toBe(true)
+    expect(missionView(run([['klasik', 1499]])).done).toBe(false)
+    expect(missionView(run([['eglence', 4000]])).done).toBe(true)
+    expect(missionView(run([['eglence', 3999]])).done).toBe(false)
+    expect(missionView(run([['klasik', 750], ['eglence', 2000]])).done).toBe(true) // %50 + %50
+    expect(missionView(run([['klasik', 750], ['eglence', 1999]])).done).toBe(false)
+    expect(run([['klasik', 1], ['eglence', 1]]).progress).toBe(11)
+    // Her yerleştirme parça parça gelse de toplam aynı (yuvarlama birikmez).
+    const many = run(Array.from({ length: 1500 }, () => ['klasik', 1] as ['klasik', number]))
+    expect(many.progress).toBe(12000)
+  })
+
+  it('kayıtta oranlı görevin hedefi ya da ağırlığı değiştirilemez (görevler sıfırlanır)', () => {
+    const day = '2026-11-09'
+    const good = JSON.parse(serializeEconomy({ ...initialEconomy(), goals: { ...initialGoals(), day, daily: dailyMissions(day) } }))
+    expect(parseEconomy(JSON.stringify(good)).goalsReset === true).toBe(false)
+    const z = good.goals.daily[2]
+    for (const bad of [{ ...z, klasik: 10 }, { ...z, eglence: 100000 }, { ...z, target: 120 }, { ...z, klasik: undefined }, { ...z, progress: 12001 }]) {
+      const r = parseEconomy(JSON.stringify({ ...good, goals: { ...good.goals, daily: [good.goals.daily[0], good.goals.daily[1], bad] } }))
+      expect(r.goalsReset).toBe(true)
+    }
+    const k = good.goals.daily[0]
+    expect(parseEconomy(JSON.stringify({ ...good, goals: { ...good.goals, daily: [{ ...k, klasik: 5 }, good.goals.daily[1], z] } })).goalsReset).toBe(true)
   })
 
   it('sürüm 1 → 2 geçişi: o günün sürüm 1 görevleri ilerlemesiyle kalır, alınmış ödüller tekrar verilmez; ertesi gün sürüm 2', () => {
