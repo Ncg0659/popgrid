@@ -34,12 +34,12 @@ import {
   type Rng,
 } from '../src/engine'
 import { FUN_RULES_VERSION } from '../src/engine/specials'
-import { ACHIEVEMENTS, DAILY_POOLS } from '../src/economy/goalsCatalog'
+import { ACHIEVEMENTS, GOALS_CATALOG_VERSION, dailyPools } from '../src/economy/goalsCatalog'
 import { awardMove, finishGame, initialEconomy, purchase, startGame, syncUsage, type EconomyResult, type EconomyState } from '../src/economy/ledger'
 import { JOKER_PRICES } from '../src/economy/rules'
 import { achievementRewardStatus, claimReward, dailyRewardStatus, rollover } from '../src/economy/rewards'
 import { createEconomyStore } from '../src/storage/economy'
-import { progressFromEvents } from '../src/economy/goals'
+import { dailyMissions, progressFromEvents } from '../src/economy/goals'
 import { greedyBot, jokerRescueAction, plannerBot, randomBot, type Bot } from './bot'
 
 const ROOT = join(import.meta.dirname, '..')
@@ -142,7 +142,17 @@ const PROFILES: readonly Profile[] = [
   { id: 'az', name: 'Az oynayan', playProb: 0.3, games: [1, 2], funShare: 0.5, claimProb: 0.6 },
   { id: 'duzenli', name: 'Düzenli oynayan', playProb: 0.85, games: [3, 5], funShare: 0.5, claimProb: 0.9 },
   { id: 'yogun', name: 'Yoğun oynayan', playProb: 0.98, games: [8, 12], funShare: 0.6, claimProb: 1 },
+  // Aşama 10.3 (2. tur): yalnızca Klasik oynayanlar (puan görevlerinin moda adaleti için).
+  { id: 'k-az', name: 'Klasik · az', playProb: 0.3, games: [1, 2], funShare: 0, claimProb: 0.6 },
+  { id: 'k-duzenli', name: 'Klasik · düzenli', playProb: 0.85, games: [3, 5], funShare: 0, claimProb: 0.9 },
 ]
+
+/**
+ * Karşılaştırma için görev kataloğu sürümü (CATALOG=1 eski hedefler). Üretim kodu her zaman güncel sürümü
+ * üretir; simülasyon yeni günün görevlerini istenen sürümle değiştirir. Başarım eşikleri her iki koşuda da
+ * güncel katalogdur (yalnızca günlük görevler karşılaştırılır).
+ */
+const SIM_CATALOG = Number(process.env.CATALOG ?? GOALS_CATALOG_VERSION)
 const SKILLS: readonly Skill[] = ['zayif', 'orta', 'guclu']
 const SKILL_NAME: Record<Skill, string> = { zayif: 'zayıf (rastgele bot)', orta: 'orta (greedy bot)', guclu: 'güçlü (planlayıcı bot)' }
 
@@ -208,6 +218,8 @@ function pureBackend(): Backend {
     rollover(day) {
       const r = rollover(s, day)
       s = r.state
+      if (SIM_CATALOG !== GOALS_CATALOG_VERSION && r.state.goals.day === day && s.goals.catalog !== SIM_CATALOG)
+        s = { ...s, goals: { ...s.goals, catalog: SIM_CATALOG, daily: dailyMissions(day, SIM_CATALOG) } }
       return r.autoStars
     },
     start: (id, mode, inv) => void (s = okState(startGame(s, id, mode, inv, undefined, mode === 'eglence' ? FUN_RULES_VERSION : undefined), 'start')),
@@ -384,7 +396,7 @@ function report() {
     lines.push(s)
     console.log(s)
   }
-  log('# POPGRID — Görev ve başarım ekonomisi simülasyonu (Aşama 10.3)')
+  log(`# POPGRID — Görev ve başarım ekonomisi simülasyonu (Aşama 10.3) — görev kataloğu sürüm ${SIM_CATALOG}`)
   log()
   log('Üretim kodu (defter, görevler, ödüller) 365 günlük oyuncu yılları üzerinde çalıştırıldı. Oyunlar gerçek motorla')
   log('botlar tarafından oynanıp kaydedildi (`scripts/simulate-goals.ts collect`), yıl simülasyonunda bu havuzdan tohumlu')
@@ -406,8 +418,8 @@ function report() {
   }
   log()
 
-  // Doğrulama: saf defter = gerçek depo (bir oyuncu-yılı).
-  {
+  // Doğrulama: saf defter = gerçek depo (bir oyuncu-yılı). Yalnızca güncel katalogla anlamlı.
+  if (SIM_CATALOG === GOALS_CATALOG_VERSION) {
     const pools = loadPools('orta')
     const clock = { t: DAY0 }
     const a = simulateYear(PROFILES[1]!, pools, 4242, { goals: true, spend: 'harcayan' })
@@ -432,6 +444,7 @@ function report() {
   const R = (f: (r: YearResult) => number) => (rs: YearResult[]) => `${fmt(med(rs.map(f)))} (${fmt(quant(rs.map(f), 0.1))}–${fmt(quant(rs.map(f), 0.9))})`
 
   const summary: string[] = []
+  const json: Record<string, SummaryRow> = {}
   for (const skill of SKILLS) {
     if (!files.includes(`${skill}-eglence111.json`)) continue
     const pools = loadPools(skill)
@@ -478,6 +491,20 @@ function report() {
     for (const p of PROFILES) {
       for (let i = 0; i < PLAYERS; i++) {
         const r = simulateYear(p, pools, 1000 * (PROFILES.indexOf(p) + 1) + i, { goals: true, spend: 'harcayan' })
+        const sk = (json[`${skill}|${p.id}`] ??= { daily: [], auto: [], ach: [], full: [], streak: [], reward: [], stars: [], playDays: [], missions: {} })
+        sk.daily.push(r.dailyStars)
+        sk.auto.push(r.autoStars)
+        sk.ach.push(r.achStars)
+        sk.full.push(r.fullDays)
+        sk.streak.push(r.bestStreak)
+        sk.reward.push(r.rewardStars)
+        sk.stars.push(r.stars)
+        sk.playDays.push(r.playDays)
+        for (const [k, [done, all]] of Object.entries(r.missions)) {
+          const c = (sk.missions[k] ??= [0, 0])
+          c[0] += done
+          c[1] += all
+        }
         for (const a of ACHIEVEMENTS) (ach[`${p.id}:${a.id}`] ??= []).push(r.achDay[`ach:${a.id}`] ?? 999)
         for (const [k, [done, all]] of Object.entries(r.missions)) {
           const c = (mis[`${p.id}|${k}`] ??= [0, 0])
@@ -491,7 +518,7 @@ function report() {
     log(`| Görev | ${PROFILES.map((p) => p.name).join(' | ')} |`)
     log(`|---|${PROFILES.map(() => '---:').join('|')}|`)
     for (const tier of ['kolay', 'orta', 'zor'] as const) {
-      for (const t of DAILY_POOLS[tier]) {
+      for (const t of dailyPools(SIM_CATALOG)[tier]) {
         const k = `${tier}:${t.kind}`
         log(`| ${tier} · ${t.kind} ${fmt(t.target)} | ${PROFILES.map((p) => { const c = mis[`${p.id}|${k}`]; return c && c[1] > 0 ? pct(c[0], c[1]) : '–' }).join(' | ')} |`)
       }
@@ -542,9 +569,71 @@ function report() {
   for (const s of summary) log(s)
   log()
   log(`Joker seti (1 Çekiç + 1 Yenile + 1 Döndür) = ${SET_PRICE} ★.`)
-  const out = join(ROOT, 'docs', 'sim-goals.md')
+  const out = join(ROOT, process.env.OUT ?? join('docs', 'sim-goals.md'))
   writeFileSync(out, lines.join('\n') + '\n')
+  writeFileSync(join(CACHE, `..`, `goals-summary-v${SIM_CATALOG}.json`), JSON.stringify(json))
   console.log(`\nRapor: ${out}`)
+}
+
+interface SummaryRow {
+  daily: number[]
+  auto: number[]
+  ach: number[]
+  full: number[]
+  streak: number[]
+  reward: number[]
+  stars: number[]
+  playDays: number[]
+  missions: Record<string, [number, number]>
+}
+
+/** Sürüm 1 ve 2 özetlerini karşılaştırır (docs/sim-goals-karsilastirma.md). */
+function compare() {
+  const read = (v: number) => JSON.parse(readFileSync(join(CACHE, '..', `goals-summary-v${v}.json`), 'utf8')) as Record<string, SummaryRow>
+  const a = read(1)
+  const b = read(2)
+  const lines: string[] = []
+  const log = (x = '') => {
+    lines.push(x)
+    console.log(x)
+  }
+  const rate = (r: SummaryRow, k: string) => {
+    const c = r.missions[k]
+    return c && c[1] > 0 ? c[0] / c[1] : null
+  }
+  const P = (x: number | null) => (x === null ? '–' : `%${Math.round(100 * x)}`)
+  log('# POPGRID — Görev hedefleri: sürüm 1 ve sürüm 2 karşılaştırması (Aşama 10.3)')
+  log()
+  log(`Aynı oyun havuzu, aynı oyuncu tohumları, ${PLAYERS} oyuncu-yılı; tek fark günlük görev kataloğu. Başarım eşikleri iki koşuda da sürüm 2.`)
+  log('Oranlar: o görevin çıktığı oynanan günlerde tamamlanma yüzdesi.')
+  log()
+  const rows: Array<[string, string, string]> = [
+    ['orta · tek oyunda 1.000 puan → gün içinde toplam 1.500', 'orta:score', 'orta:scoreSum'],
+    ['zor · tek oyunda 2.500 puan → gün içinde toplam 4.000', 'zor:score', 'zor:scoreSum'],
+    ['zor · kombo 5 → kombo 4', 'zor:combo', 'zor:combo'],
+  ]
+  for (const skill of SKILLS) {
+    log(`## ${SKILL_NAME[skill]}`)
+    log()
+    log(`| Görev (eski → yeni) | ${PROFILES.map((p) => p.name).join(' | ')} |`)
+    log(`|---|${PROFILES.map(() => '---:').join('|')}|`)
+    for (const [name, ka, kb] of rows) {
+      log(`| ${name} | ${PROFILES.map((p) => `${P(rate(a[`${skill}|${p.id}`]!, ka))} → ${P(rate(b[`${skill}|${p.id}`]!, kb))}`).join(' | ')} |`)
+    }
+    const m = (r: SummaryRow, f: (r: SummaryRow, i: number) => number) => fmt(med(r.daily.map((_, i) => f(r, i))))
+    const perDay = (r: SummaryRow, i: number) => (r.daily[i]! + r.auto[i]!) / Math.max(1, r.playDays[i]!)
+    for (const [name, f] of [
+      ['Günlük görev ★ / oynanan gün', perDay],
+      ['Üç görevi tamamlanan gün', (r: SummaryRow, i: number) => r.full[i]!],
+      ['En uzun seri', (r: SummaryRow, i: number) => r.streak[i]!],
+      ['Toplam ödül ★ (yıl)', (r: SummaryRow, i: number) => r.reward[i]!],
+      ['Yıl sonu bakiye', (r: SummaryRow, i: number) => r.stars[i]!],
+    ] as Array<[string, (r: SummaryRow, i: number) => number]>) {
+      log(`| ${name} | ${PROFILES.map((p) => `${m(a[`${skill}|${p.id}`]!, f)} → ${m(b[`${skill}|${p.id}`]!, f)}`).join(' | ')} |`)
+    }
+    log()
+  }
+  writeFileSync(join(ROOT, 'docs', 'sim-goals-karsilastirma.md'), lines.join('\n') + '\n')
 }
 
 // ---------------------------------------------------------------------------- giriş
@@ -552,4 +641,5 @@ function report() {
 const [cmd, a1, a2, a3] = process.argv.slice(2)
 if (cmd === 'collect') collect(a1 as Skill, a2 as PoolMode, Number(a3 ?? 100))
 else if (cmd === 'report') report()
+else if (cmd === 'compare') compare()
 else console.log('Kullanım: collect <zayif|orta|guclu> <klasik|eglence0|eglence111> <adet>  |  report')

@@ -24,7 +24,7 @@
  */
 import { JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameMode, JokerCharges } from '../engine/types'
-import { DAILY_POOLS, DAILY_REWARDS, DAILY_TIERS, GOALS_CATALOG_VERSION, type DailyKind } from './goalsCatalog'
+import { DAILY_REWARDS, DAILY_TIERS, GOALS_CATALOG_VERSION, KNOWN_CATALOG_VERSIONS, dailyPools, type DailyKind } from './goalsCatalog'
 import { initialGoals, isDayKey, type DailyMission, type GoalCounters, type GoalsState } from './goals'
 import { parseRewardId } from './rewards'
 import {
@@ -126,13 +126,13 @@ function owner(v: unknown): Ownership | null | undefined {
 
 const COUNTER_KEYS: readonly (keyof GoalCounters)[] = ['lines', 'placed', 'games', 'bombs', 'lucky', 'maxCombo', 'bestKlasik', 'bestEglence']
 
-function mission(v: unknown, i: number): DailyMission | null {
+function mission(v: unknown, i: number, catalog: number): DailyMission | null {
   if (!isObj(v)) return null
   const tier = DAILY_TIERS[i]
   if (!tier || v.tier !== tier) return null
   const kind = v.kind as DailyKind
   // Hedef ve tür katalogdaki bir şablonla eşleşmeli; ödül kataloğun ödülü olmalı (kayıttan ödül şişirilemez).
-  if (!DAILY_POOLS[tier].some((t) => t.kind === kind && t.target === v.target)) return null
+  if (!dailyPools(catalog)[tier].some((t) => t.kind === kind && t.target === v.target)) return null
   if (v.reward !== DAILY_REWARDS[tier]) return null
   const progress = count(v.progress, v.target as number)
   return progress === null ? null : { tier, kind, target: v.target as number, reward: DAILY_REWARDS[tier], progress }
@@ -141,11 +141,14 @@ function mission(v: unknown, i: number): DailyMission | null {
 /** Görev durumu; geçersizse null (çağıran yalnızca görevleri sıfırlar). */
 function goals(v: unknown): GoalsState | null {
   if (!isObj(v)) return null
-  if (v.catalog !== GOALS_CATALOG_VERSION) return null
+  // Katalog sürümü: o günün görevleri hangi sürümle üretildiyse onunla doğrulanır (sürüm 1 görevleri
+  // geçiş gününün sonuna kadar kalır). Bilinmeyen sürüm: görevler sıfırlanır (daha yeni sürüm için bkz. parseEconomy).
+  const catalog = v.catalog
+  if (typeof catalog !== 'number' || !KNOWN_CATALOG_VERSIONS.includes(catalog)) return null
   const day = v.day === null ? null : isDayKey(v.day) ? v.day : undefined
   if (day === undefined) return null
   if (!Array.isArray(v.daily) || v.daily.length !== (day === null ? 0 : DAILY_TIERS.length)) return null
-  const daily = v.daily.map(mission)
+  const daily = v.daily.map((m, i) => mission(m, i, catalog))
   if (daily.some((m) => m === null)) return null
   if (new Set(daily.map((m) => m!.kind)).size !== daily.length) return null
   const st = isObj(v.streak) ? v.streak : null
@@ -165,7 +168,8 @@ function goals(v: unknown): GoalsState | null {
   }
   if (typeof v.retroDone !== 'boolean') return null
   return {
-    catalog: GOALS_CATALOG_VERSION,
+    // Gün seçilmemişse eski sürüm numarası taşınmaz: ilk görevler zaten güncel sürümle üretilecek.
+    catalog: day === null ? GOALS_CATALOG_VERSION : catalog,
     day,
     daily: daily as DailyMission[],
     streak: { count: streak.count, lastDay: streak.lastDay, best: streak.best },
@@ -200,6 +204,10 @@ export function parseEconomy(raw: string | null, legacyInventoryRaw: string | nu
   const version = count(v.schemaVersion)
   if (version === null || version === 0) return corrupt()
   if (version > ECONOMY_SCHEMA_VERSION) return { status: 'future', state: initialEconomy() }
+  // Aşama 10.3: daha yeni bir görev kataloğuyla yazılmış kayıt (eski sürüme dönülmüş): sayaçları ve seriyi
+  // kaybetmemek için kayıt salt okunur kalır, görevler sıfırlanmaz.
+  if (version >= 4 && isObj(v.goals) && typeof v.goals.catalog === 'number' && v.goals.catalog > GOALS_CATALOG_VERSION)
+    return { status: 'future', state: initialEconomy() }
 
   const stars = count(v.stars, MAX_STARS)
   const inventory = charges(v.inventory)

@@ -8,9 +8,17 @@
  * - Ödüller elle "Al" ile toplanır; gün biterken alınmamış tamamlanmış günlük ödüller otomatik eklenir.
  *
  * Katalog değişirse GOALS_CATALOG_VERSION artırılır: aynı gün + aynı sürüm = aynı görevler.
+ *
+ * Sürüm 2 (Aşama 10.3 simülasyonu, kullanıcı onayı): puan görevleri tek oyun yerine GÜN İÇİNDE TOPLAM puan
+ * (Klasik + Eğlence birlikte): orta 1.500, zor 4.000; zor kombo 5 → 4. Başarım: Kombo-3 8 → 7, Klasik
+ * 1.000 / 2.500 / 5.000. Ödüller aynı (günlük 10/20/30 + 20, başarımlar toplam 1.775 ★).
+ * Sürüm geçişi (src/economy/goals.ts, schema.ts): o günün sürüm 1 görevleri ilerlemesiyle gün sonuna kadar
+ * aynen kalır; ertesi gün sürüm 2 görevleri üretilir. Sayaçlar, seri ve verilmiş ödüller korunur.
  */
 
-export const GOALS_CATALOG_VERSION = 1
+export const GOALS_CATALOG_VERSION = 2
+/** Okunabilen (kayıtta bulunabilecek) katalog sürümleri. */
+export const KNOWN_CATALOG_VERSIONS: readonly number[] = [1, 2]
 
 /** Görev türleri: hepsi motorun mevcut olaylarından ve oyun durumundan sayılır (motor değişmez). */
 export type DailyKind =
@@ -20,8 +28,10 @@ export type DailyKind =
   | 'placed'
   /** Gün içinde bitirilen oyun sayısı (yarıda bırakılan sayılmaz). */
   | 'games'
-  /** Tek oyunda ulaşılan puan (oyun sürerken de sayılır). */
+  /** Tek oyunda ulaşılan puan (yalnızca katalog sürüm 1; geçiş günü için okunur). */
   | 'score'
+  /** Gün içinde kazanılan toplam puan (bütün oyunlar, Klasik + Eğlence; yarıda kalan oyunun puanı da). Sürüm 2. */
+  | 'scoreSum'
   /** Üst üste hat temizleyen hamle sayısı (kombo). */
   | 'combo'
   /** Tek hamlede temizlenen hat sayısı. */
@@ -39,8 +49,8 @@ export const DAILY_REWARDS: Readonly<Record<DailyTier, number>> = { kolay: 10, o
 export const DAILY_BONUS = 20
 export const DAILY_TIERS: readonly DailyTier[] = ['kolay', 'orta', 'zor']
 
-/** Zorluk havuzları. Bir günün üç görevi birbirinden farklı türde seçilir. Hedefler Aşama 10.3 simülasyonuyla gözden geçirilecek. */
-export const DAILY_POOLS: Readonly<Record<DailyTier, readonly DailyTemplate[]>> = {
+/** Sürüm 1 havuzları (Aşama 10.2). Yalnızca kayıttaki eski günün görevlerini doğrulamak için tutulur. */
+export const DAILY_POOLS_V1: Readonly<Record<DailyTier, readonly DailyTemplate[]>> = {
   kolay: [
     { kind: 'lines', target: 10 },
     { kind: 'placed', target: 25 },
@@ -58,6 +68,32 @@ export const DAILY_POOLS: Readonly<Record<DailyTier, readonly DailyTemplate[]>> 
     { kind: 'multi', target: 3 },
     { kind: 'combo', target: 5 },
   ],
+}
+
+/** Zorluk havuzları (güncel sürüm). Bir günün üç görevi birbirinden farklı türde seçilir. */
+export const DAILY_POOLS: Readonly<Record<DailyTier, readonly DailyTemplate[]>> = {
+  kolay: [
+    { kind: 'lines', target: 10 },
+    { kind: 'placed', target: 25 },
+    { kind: 'games', target: 1 },
+  ],
+  orta: [
+    { kind: 'lines', target: 25 },
+    { kind: 'scoreSum', target: 1500 },
+    { kind: 'combo', target: 3 },
+    { kind: 'games', target: 2 },
+  ],
+  zor: [
+    { kind: 'lines', target: 50 },
+    { kind: 'scoreSum', target: 4000 },
+    { kind: 'multi', target: 3 },
+    { kind: 'combo', target: 4 },
+  ],
+}
+
+/** Katalog sürümüne göre havuz. */
+export function dailyPools(catalog: number): Readonly<Record<DailyTier, readonly DailyTemplate[]>> {
+  return catalog === 1 ? DAILY_POOLS_V1 : DAILY_POOLS
 }
 
 /** Başarım sayaçları (toplam ya da en iyi değer). */
@@ -95,8 +131,8 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   ]),
   ...series('klasik', 'bestKlasik', [
     [1000, 25],
-    [3000, 75],
-    [6000, 150],
+    [2500, 75],
+    [5000, 150],
   ]),
   ...series('eglence', 'bestEglence', [
     [1000, 25],
@@ -106,7 +142,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   ...series('kombo', 'maxCombo', [
     [3, 25],
     [5, 50],
-    [8, 100],
+    [7, 100],
   ]),
   ...series('bomba', 'bombs', [
     [10, 25],

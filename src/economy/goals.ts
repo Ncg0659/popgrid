@@ -14,7 +14,6 @@ import { createRng, seedFromString } from '../engine/rng'
 import type { GameEvent } from '../engine/types'
 import {
   ACHIEVEMENTS,
-  DAILY_POOLS,
   DAILY_REWARDS,
   DAILY_TIERS,
   GOALS_CATALOG_VERSION,
@@ -22,6 +21,7 @@ import {
   type AchievementMetric,
   type DailyKind,
   type DailyTier,
+  dailyPools,
 } from './goalsCatalog'
 
 export interface DailyMission {
@@ -54,7 +54,10 @@ export interface Streak {
 }
 
 export interface GoalsState {
-  /** Görevlerin üretildiği katalog sürümü. */
+  /**
+   * Şu anki günlük görevlerin üretildiği katalog sürümü. Sürüm yükseldiğinde o günün eski görevleri gün
+   * sonuna kadar kalır (ilerleme ve ödül kimlikleri bozulmasın); yeni gün güncel sürümle üretilir.
+   */
   readonly catalog: number
   /** Şu anki görevlerin günü (görülen en ileri gün); hiç üretilmediyse null. */
   readonly day: string | null
@@ -138,7 +141,7 @@ export function dailyMissions(day: string, catalog = GOALS_CATALOG_VERSION): Dai
   const used = new Set<DailyKind>()
   const out: DailyMission[] = []
   for (const tier of DAILY_TIERS) {
-    const pool = DAILY_POOLS[tier].filter((t) => !used.has(t.kind))
+    const pool = dailyPools(catalog)[tier].filter((t) => !used.has(t.kind))
     const pick = pool[rng.nextInt(pool.length)]!
     used.add(pick.kind)
     out.push({ tier, kind: pick.kind, target: pick.target, reward: DAILY_REWARDS[tier], progress: 0 })
@@ -158,6 +161,8 @@ export interface Progress {
   readonly games: number
   /** Ulaşılan puan (en yüksek). */
   readonly score: number
+  /** Kazanılan puan (toplam; hamle puanı + bomba patlaması). */
+  readonly scoreSum: number
   readonly combo: number
   /** Tek hamlede temizlenen hat. */
   readonly multi: number
@@ -165,7 +170,7 @@ export interface Progress {
   readonly lucky: number
 }
 
-export const NO_PROGRESS: Progress = { lines: 0, placed: 0, games: 0, score: 0, combo: 0, multi: 0, bombs: 0, lucky: 0 }
+export const NO_PROGRESS: Progress = { lines: 0, placed: 0, games: 0, score: 0, scoreSum: 0, combo: 0, multi: 0, bombs: 0, lucky: 0 }
 
 /**
  * Hamle olaylarından ilerleme. Hat = 'cleared' olayındaki satır + sütun (bomba patlaması ve Çekiç hat sayılmaz;
@@ -175,6 +180,7 @@ export function progressFromEvents(events: readonly GameEvent[]): Progress {
   let lines = 0
   let placed = 0
   let score = 0
+  let scoreSum = 0
   let combo = 0
   let multi = 0
   let bombs = 0
@@ -185,9 +191,12 @@ export function progressFromEvents(events: readonly GameEvent[]): Progress {
       lines += n
       multi = Math.max(multi, n)
     } else if (e.type === 'placed') placed += 1
-    else if (e.type === 'scored') score = Math.max(score, e.score)
-    else if (e.type === 'exploded') {
+    else if (e.type === 'scored') {
+      score = Math.max(score, e.score)
+      scoreSum += e.breakdown.total
+    } else if (e.type === 'exploded') {
       bombs += e.bombs.length
+      scoreSum += e.points
       score = Math.max(score, e.score)
     } else if (e.type === 'combo') combo = Math.max(combo, e.combo)
     else if (e.type === 'luckyReward') lucky += 1
@@ -195,10 +204,10 @@ export function progressFromEvents(events: readonly GameEvent[]): Progress {
   }
   // Tek temizleme yapan hamle kombo 1'dir (motor kombo olayını 2'den itibaren yollar).
   if (lines > 0) combo = Math.max(combo, 1)
-  return { lines, placed, games: 0, score, combo, multi, bombs, lucky }
+  return { lines, placed, games: 0, score, scoreSum, combo, multi, bombs, lucky }
 }
 
-const SUMMED: ReadonlySet<DailyKind> = new Set(['lines', 'placed', 'games'])
+const SUMMED: ReadonlySet<DailyKind> = new Set(['lines', 'placed', 'games', 'scoreSum'])
 
 function advanceMission(m: DailyMission, p: Progress): DailyMission {
   const value = p[m.kind]
