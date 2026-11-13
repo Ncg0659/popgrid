@@ -5,7 +5,7 @@ import type { EconomyState } from '../economy/ledger'
 import { dailyRewardStatus } from '../economy/rewards'
 import { SHOP_TOAST_MS } from '../fx/fxTiming'
 import { useDialog } from '../help/useDialog'
-import type { EconomyStatus } from './economyUi'
+import { fmtStars, fmtStarsShort, type EconomyStatus } from './economyUi'
 import {
   TIER_LABEL,
   achievementGroups,
@@ -43,8 +43,10 @@ export function GoalsSheet({ state, status, persistent, onClaim, canTakeOver, on
   const dialog = useDialog<HTMLDivElement>(onClose, closeRef, returnFocus)
   const [tab, setTab] = useState<GoalsTab>('gunluk')
   const [now, setNow] = useState(() => Date.now())
-  const [toast, setToast] = useState<{ id: number; text: string; ok: boolean } | null>(null)
-  const toastId = useRef(0)
+  // Ödül alınca kartların üstüne bildirim çıkmaz: başarıda yalnızca başlıktaki bakiye güncellenir;
+  // sorun olursa (kayıt yazılamadı vb.) mesaj panelin içinde, kartları itmeden en üstte görünür.
+  const [error, setError] = useState<{ id: number; text: string } | null>(null)
+  const errorId = useRef(0)
   const blocked = goalsBlockedReason(status, persistent)
   const canClaim = blocked === null
 
@@ -55,15 +57,16 @@ export function GoalsSheet({ state, status, persistent, onClaim, canTakeOver, on
   }, [])
 
   useEffect(() => {
-    if (!toast) return
-    const t = window.setTimeout(() => setToast(null), SHOP_TOAST_MS)
+    if (!error) return
+    const t = window.setTimeout(() => setError(null), SHOP_TOAST_MS)
     return () => window.clearTimeout(t)
-  }, [toast])
+  }, [error])
 
   const claim = (id: string) => {
     const r = onClaim(id)
-    toastId.current += 1
-    setToast({ id: toastId.current, text: r.text, ok: r.ok })
+    if (r.ok) return setError(null)
+    errorId.current += 1
+    setError({ id: errorId.current, text: r.text })
   }
 
   const g = state.goals
@@ -104,9 +107,14 @@ export function GoalsSheet({ state, status, persistent, onClaim, canTakeOver, on
         <div className="shop-grip" aria-hidden="true" />
         <header className="help-head shop-head">
           <h2 id="goals-title">Görevler</h2>
-          <button ref={closeRef} type="button" className="btn-soft" onClick={onClose}>
-            Kapat
-          </button>
+          <div className="goals-head-end">
+            <span className="goals-balance" role="status" aria-live="polite" aria-label={`Yıldız bakiyen ${fmtStars(state.stars)}`}>
+              <StarIcon /> {fmtStarsShort(state.stars)}
+            </span>
+            <button ref={closeRef} type="button" className="btn-soft" onClick={onClose}>
+              Kapat
+            </button>
+          </div>
         </header>
         <div className="goals-tabs" role="tablist" aria-label="Görevler">
           <button type="button" role="tab" id="goals-tab-gunluk" aria-controls="goals-panel" aria-selected={tab === 'gunluk'} onClick={() => setTab('gunluk')}>
@@ -117,6 +125,11 @@ export function GoalsSheet({ state, status, persistent, onClaim, canTakeOver, on
           </button>
         </div>
         <div className="shop-body goals-body" id="goals-panel" role="tabpanel" aria-labelledby={`goals-tab-${tab}`}>
+          {error && (
+            <p className="goals-error" role="alert">
+              {error.text}
+            </p>
+          )}
           {blocked && (
             <div className="shop-blocked" role="note">
               <p>{blocked}</p>
@@ -210,9 +223,6 @@ export function GoalsSheet({ state, status, persistent, onClaim, canTakeOver, on
             </div>
           )}
         </div>
-        <p className="shop-toast" role="status" aria-live="polite" data-ok={toast?.ok || undefined} data-shown={toast ? '' : undefined}>
-          {toast?.text ?? ''}
-        </p>
       </div>
     </div>
   )

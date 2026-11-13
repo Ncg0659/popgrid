@@ -123,8 +123,16 @@ const kv = (entries: Array<[string, string]>) => {
 }
 
 describe('Aşama 7.4: Nasıl Oynanır? kurallarla birebir', () => {
-  it('bölüm sırası: temel kurallar, modlar, yerleştirme, temizleme, puan, yıldızlar, bitiş, jokerler, mağaza, düğmeler, SSS', () => {
-    expect(visibleSections().map((s) => s.id)).toEqual(['kurallar', 'modlar', 'yerlestirme', 'temizleme', 'puan', 'yildizlar', 'bitis', 'jokerler', 'ozelbloklar', 'magaza', 'dugmeler', 'sss'])
+  // Aşama 10.4: mağazadan sonra "Günlük Görevler ve Başarımlar" bölümü eklendi.
+  it('bölüm sırası: temel kurallar, modlar, yerleştirme, temizleme, puan, yıldızlar, bitiş, jokerler, mağaza, görevler, düğmeler, SSS', () => {
+    expect(visibleSections().map((s) => s.id)).toEqual(['kurallar', 'modlar', 'yerlestirme', 'temizleme', 'puan', 'yildizlar', 'bitis', 'jokerler', 'ozelbloklar', 'magaza', 'gorevler', 'dugmeler', 'sss'])
+  })
+
+  it('görevler bölümü: ödüller, oranlı puan hedefleri ve başarım toplamı katalogdan', () => {
+    const t = text('gorevler')
+    for (const part of ['kolay (10 ★)', 'orta (20 ★)', 'zor (30 ★)', '+20 ★ bonus', 'en çok 80 ★', 'Klasik’te 750 ya da Eğlence’de 2.000', 'Klasik’te 1.500 ya da Eğlence’de 4.000', '21 başarım ve 1.775 ★', 'gece yarısı', 'kendiliğinden hesabına eklenir'])
+      expect(t).toContain(part)
+    expect(text('dugmeler')).toContain('Pano (Görevler)')
   })
 
   it('modlar: Klasik jokersiz; Eğlence ücretsiz haklar motordan (1 / 1 / 2)', () => {

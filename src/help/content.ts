@@ -10,6 +10,7 @@ import { DEFAULT_FREE_JOKERS, clearBasePoints, scoreMove } from '../engine'
 import type { JokerKind } from '../engine/types'
 import { FUN_STAR_CAP, JOKER_PRICES, LINE_CLEAR_STARS, STARS_PER_HUNDRED_POINTS } from '../economy/rules'
 import { BOMB_FUSE, LUCKY_JOKER_CAP, LUCKY_JOKER_OVERFLOW_STARS } from '../engine/specials'
+import { ACHIEVEMENTS, DAILY_BONUS, DAILY_POOLS, DAILY_REWARDS } from '../economy/goalsCatalog'
 
 export type Availability = 'oyunda' | 'planlanan'
 
@@ -54,6 +55,28 @@ export const SCORE_EXAMPLES = {
   twoLines: scoreMove(3, 2, 0).breakdown.total,
   /** Bir önceki hamle de temizlemişti: 3 bloklu parça 1 satır tamamlar (kombo ×2). */
   comboSecond: scoreMove(3, 1, 1).breakdown.total,
+} as const
+
+/** Aşama 10.4: görev ve başarım metinleri. Sayılar görev kataloğundan gelir, elle yazılmaz. */
+const ORTA_PTS = DAILY_POOLS.orta.find((t) => t.kind === 'points')!
+const ZOR_PTS = DAILY_POOLS.zor.find((t) => t.kind === 'points')!
+const ACH_TOTAL = ACHIEVEMENTS.reduce((n, a) => n + a.reward, 0)
+export const GOALS_HELP = {
+  intro: `Her gün üç yeni görev gelir: kolay (${DAILY_REWARDS.kolay} ★), orta (${DAILY_REWARDS.orta} ★) ve zor (${DAILY_REWARDS.zor} ★). Görevler düğmesine dokununca açılır.`,
+  daily: [
+    'Klasik ve Eğlence oyunlarının ikisi de görevlere sayılır. Yarıda bıraktığın oyundaki hatlar ve puanlar da sayılır.',
+    `Puan görevlerinde iki moddaki puanın birlikte sayılır: örneğin orta görev “Klasik’te ${fmt(ORTA_PTS.klasik!)} ya da Eğlence’de ${fmt(ORTA_PTS.eglence!)} puan”, zor görev “Klasik’te ${fmt(ZOR_PTS.klasik!)} ya da Eğlence’de ${fmt(ZOR_PTS.eglence!)} puan”. Biraz Klasik, biraz Eğlence oynarsan ikisi oranında ilerlersin.`,
+    'Biten görevin ödülünü “Al” düğmesiyle alırsın. Her ödül bir kez alınır.',
+    `Üç görevin hepsini bitirirsen +${DAILY_BONUS} ★ bonus kazanırsın; bir günde en çok ${DAILY_REWARDS.kolay + DAILY_REWARDS.orta + DAILY_REWARDS.zor + DAILY_BONUS} ★.`,
+    'Görevler gece yarısı (telefonunun saatine göre) yenilenir. Bitirip almayı unuttuğun ödüller ertesi gün kendiliğinden hesabına eklenir.',
+  ],
+  achIntro: `Başarımlar uzun vadeli hedeflerdir: 7 seride üçer basamak, toplam ${ACHIEVEMENTS.length} başarım ve ${fmt(ACH_TOTAL)} ★.`,
+  ach: [
+    'Seriler: Hat Ustası, Klasik Rekoru, Eğlence Rekoru, Kombo, Bombacı, Şanslı ve Düzenli (üst üste günlerde üç görevi de bitirmek).',
+    'Bir basamak bitince sonraki açılır. Kilitli basamaklar önceki basamak bitince ilerlemeye başlar.',
+    'Biten başarımın ödülünü de “Al” düğmesiyle alırsın; başarım ödülleri bir kez verilir.',
+    'Görevler ve başarımlar bu cihazda saklanır. Oyun başka bir sekmede açıksa bu sekmede ilerleme kaydedilmez ve ödül alınamaz.',
+  ],
 } as const
 
 export const HELP_SECTIONS: readonly HelpSection[] = [
@@ -234,6 +257,17 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     ],
   },
   {
+    id: 'gorevler',
+    title: 'Günlük Görevler ve Başarımlar',
+    availability: 'oyunda',
+    blocks: [
+      { kind: 'text', text: GOALS_HELP.intro },
+      { kind: 'list', items: GOALS_HELP.daily },
+      { kind: 'text', text: GOALS_HELP.achIntro },
+      { kind: 'list', items: GOALS_HELP.ach },
+    ],
+  },
+  {
     id: 'dugmeler',
     title: 'Düğmeler',
     availability: 'oyunda',
@@ -245,6 +279,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
           'Döngü oku (Yeni oyun): mod seçimini açar (Klasik ya da Eğlence). Oyun sürerken iki kez dokunman gerekir; yanlışlıkla sıfırlanmasın diye.',
           'Taç: bu cihazdaki Klasik rekorun. Eğlence Modu’nda yerinde mor rozetle Eğlence rekorun görünür.',
           'Yıldız: yıldız bakiyen. Dokununca Yıldız Mağazası açılır.',
+          'Pano (Görevler): günlük görevleri ve başarımları açar. Üstündeki sayı, alınmayı bekleyen ödülleri gösterir.',
           'Soru işareti: bu rehberi açar.',
         ],
       },
