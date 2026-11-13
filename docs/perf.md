@@ -135,7 +135,18 @@ bırakıldı). Tarayıcı sistemin yedek yazı tipine düştü. Sonuçları:
   `DIR=dist` ile zaten bunu ölçer. Yazı tipiyle ilgili bir sonuç çıkarılacaksa, sayfada `document.fonts` içinde
   `Baloo 2 Variable 400 800` yüklü olduğu doğrulanmalıdır.
 
-Henüz yapılmayanlar (ayrı onayla): React'te gereksiz yeniden çizimler (Aşama 9.4).
+### Aşama 9.4 — React yeniden çizim analizi (uygulanmadı)
+
+Her hedef hücre değişiminde bütün uygulama yeniden çiziliyor (4×'te ≈3,8 ms, 1×'te ≈1,4 ms). Bunun en çok ≈1,1 ms'si
+`memo` ile önlenebilir ve hiçbir karede ölçülebilir değişiklik yaratmıyor. Karar (C): değişiklik yapılmadı.
+
+## Teknik borç (Aşama 9 kapanışı)
+
+- **Sürükleme başlangıcı karesi:** 4×'te ≈78 ms (bunun ≈38 ms'si stil hesabı). Parmak parçaya ilk değdiğinde tepsi ve
+  hayalet önizleme birlikte stil değiştiriyor. Bugün kullanıcıya fark edilir bir takılma bildirilmedi; ileride ayrı bir
+  aşamada ölçülerek ele alınabilir.
+- **İlk dokunuştaki ses motoru açılışına dokunulmayacak:** iPhone'da sesin çalışması (sessiz modun korunması dahil) bu
+  açılışa bağlı. Bu kare iyileştirilirken ses motorunun ilk dokunuşta başlatılması değiştirilmemelidir.
 
 ## iPhone'da gerçek ölçüm (isteğe bağlı, ücretsiz)
 

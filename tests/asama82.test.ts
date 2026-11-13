@@ -253,14 +253,15 @@ describe('Aşama 8.2: kayıt şeması 3 ve geriye uyumluluk', () => {
       ...over,
     })
 
-  it('güncel şema 3', () => {
-    expect(ECONOMY_SCHEMA_VERSION).toBe(3)
+  // Aşama 10.2: şema 4'e çıktı (görevler); şema 3'ün bütün alanları ve geçişleri aynen geçerli.
+  it('güncel şema 4 (Aşama 10.2)', () => {
+    expect(ECONOMY_SCHEMA_VERSION).toBe(4)
   })
 
   it('şema 2 kaydı okunur (migrated): bakiye, envanter, oyun, geçmiş, eski rekorlar aynen; yeni alanlar boş', () => {
     const r = parseEconomy(v2())
     expect(r.status).toBe('migrated')
-    expect(r.state.schemaVersion).toBe(3)
+    expect(r.state.schemaVersion).toBe(4)
     expect(r.state.stars).toBe(140)
     expect(r.state.inventory).toEqual({ cekic: 1, yenile: 2, dondur: 0 })
     expect(r.state.funBests).toEqual({ withoutPurchased: 900, withPurchased: 0 })
@@ -268,7 +269,9 @@ describe('Aşama 8.2: kayıt şeması 3 ve geriye uyumluluk', () => {
     expect(r.state.active!.lineStars).toBe(12)
     expect('funRules' in r.state.active! || 'freeGranted' in r.state.active!).toBe(false)
     expect(r.state.history[0]!.score).toBe(900)
-    expect(r.state.totals).toEqual({ earned: 200, spent: 60, gamesFinished: 1, gamesAbandoned: 0 })
+    expect(r.state.totals).toEqual({ earned: 200, spent: 60, gamesFinished: 1, gamesAbandoned: 0, rewardEarned: 0 })
+    expect(r.state.rewardIds).toEqual([])
+    expect(r.state.goals.day).toBe(null)
   })
 
   it('şema 2 kaydındaki yabancı Aşama 8 alanları yok sayılır (2\'de anlamı yok)', () => {
@@ -297,6 +300,6 @@ describe('Aşama 8.2: kayıt şeması 3 ve geriye uyumluluk', () => {
     expect(parseEconomy(withActive({ funRules: 1, freeGranted: NONE })).status).toBe('ok')
     expect(parseEconomy(withActive({ funRules: 0 })).status).toBe('corrupt')
     expect(parseEconomy(withActive({ freeGranted: { cekic: -1, yenile: 0, dondur: 0 } })).status).toBe('corrupt')
-    expect(parseEconomy(JSON.stringify({ ...good, schemaVersion: 4 })).status).toBe('future')
+    expect(parseEconomy(JSON.stringify({ ...good, schemaVersion: 5 })).status).toBe('future')
   })
 })

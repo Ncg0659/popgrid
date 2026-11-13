@@ -22,6 +22,7 @@
  */
 import { DEFAULT_FREE_JOKERS, JOKER_KINDS, NO_JOKERS } from '../engine/jokers'
 import type { GameEvent, GameMode, JokerCharges, JokerKind, JokerWallet } from '../engine/types'
+import { NO_PROGRESS, applyProgress, initialGoals, progressFromEvents, type GoalsState } from './goals'
 import { JOKER_PRICES, starCapFor, starsForFinalScore, starsForMove } from './rules'
 
 /**
@@ -29,8 +30,11 @@ import { JOKER_PRICES, starCapFor, starsForFinalScore, starsForMove } from './ru
  * 3: Aşama 8 — özel bloklu Eğlence: etkin oyunda funRules ve şanslı bloktan verilen ücretsiz jokerler
  *    (freeGranted), biten oyunda funRules, ayrı rekorlar (funBestsOzel). Eski kayıtlar (1, 2) okunur ve
  *    bu alanlar boş/0 olarak taşınır; şema 3 kaydını eski sürüm "future" görür ve üzerine yazmaz.
+ * 4: Aşama 10.2 — günlük görevler ve başarımlar: goals (görevler, seri, sayaçlar), rewardIds (verilen ödül
+ *    kimlikleri), totals.rewardEarned. Ödül, ilerleme ve yıldız aynı kayıtta: "Al" tek setItem'dır.
+ *    Eski kayıtlar (1–3) okunur, bu alanlar boş/0 taşınır; şema 4 kaydını eski sürüm "future" görür.
  */
-export const ECONOMY_SCHEMA_VERSION = 3
+export const ECONOMY_SCHEMA_VERSION = 4
 
 /** Taşma ve bozuk kayıtlara karşı üst sınırlar (oyun içinde ulaşılması beklenmez). */
 export const MAX_STARS = 99_999_999
@@ -92,6 +96,8 @@ export interface EconomyTotals {
   readonly gamesFinished: number
   /** Bitmeden bırakılan (sayfa kapandı, yeni oyun açıldı) oyunlar: oyun sonu ödülü verilmedi. */
   readonly gamesAbandoned: number
+  /** Aşama 10.2: görev ve başarım ödüllerinden kazanılan yıldız (earned'e de dahildir). */
+  readonly rewardEarned: number
 }
 
 /** Kaydı değiştirme hakkı olan sekme. */
@@ -120,6 +126,10 @@ export interface EconomyState {
   readonly purchaseIds: readonly string[]
   /** Kaydı değiştirme hakkı olan sekme; null = kimse (ilk işlemden önce alınmalı). */
   readonly owner: Ownership | null
+  /** Aşama 10.2: günlük görevler, seri ve başarım sayaçları. */
+  readonly goals: GoalsState
+  /** Aşama 10.2: verilmiş görev/başarım ödüllerinin kimlikleri (çift ödül koruması, rewards.ts). */
+  readonly rewardIds: readonly string[]
 }
 
 export type EconomyFailure =
@@ -132,6 +142,10 @@ export type EconomyFailure =
   | 'duplicatePurchase'
   | 'inventoryFull'
   | 'otherTab'
+  /** Aşama 10.2: bu ödül zaten verildi. */
+  | 'duplicateReward'
+  /** Aşama 10.2: ödülün koşulu sağlanmadı ya da günü geçti. */
+  | 'notClaimable'
 
 export type EconomyResult =
   | { readonly ok: true; readonly state: EconomyState; readonly stars: number }
@@ -151,9 +165,11 @@ export function initialEconomy(inventory: JokerCharges = NO_JOKERS): EconomyStat
     history: [],
     funBests: { withoutPurchased: 0, withPurchased: 0 },
     funBestsOzel: { withoutPurchased: 0, withPurchased: 0 },
-    totals: { earned: 0, spent: 0, gamesFinished: 0, gamesAbandoned: 0 },
+    totals: { earned: 0, spent: 0, gamesFinished: 0, gamesAbandoned: 0, rewardEarned: 0 },
     purchaseIds: [],
     owner: null,
+    goals: initialGoals(),
+    rewardIds: [],
   }
 }
 
@@ -163,6 +179,8 @@ const validId = (id: unknown): id is string => typeof id === 'string' && id.leng
 const chargesOk = (c: JokerCharges): boolean => JOKER_KINDS.every((k) => isCount(c[k]))
 const sum = (c: JokerCharges): number => c.cekic + c.yenile + c.dondur
 const addStars = (stars: number, add: number): number => Math.min(MAX_STARS, stars + add)
+
+const modeInfo = (active: ActiveGame) => ({ mode: active.mode, ozel: active.mode === 'eglence' && active.funRules !== undefined })
 
 /** Bu oyunda tavana kadar daha kaç yıldız kazanılabilir (Klasik: sınırsız). */
 export function starsLeftThisGame(active: ActiveGame): number {
@@ -241,6 +259,8 @@ export function awardMove(state: EconomyState, gameId: string, moveCount: number
       stars: state.stars + added,
       active: { ...active, lastAwardedMove: moveCount, lineStars: active.lineStars + added, ...(freeGranted ? { freeGranted } : {}) },
       totals: { ...state.totals, earned: state.totals.earned + added },
+      // Aşama 10.2: görev ilerlemesi yalnızca ödüllendirilen (yeni) hamlede: aynı hamle iki kez sayılmaz.
+      goals: applyProgress(state.goals, progressFromEvents(events), modeInfo(active)),
     },
   }
 }
@@ -334,6 +354,8 @@ export function finishGame(state: EconomyState, gameId: string, finalScore: numb
       funBests,
       funBestsOzel,
       totals: { ...s.totals, earned: s.totals.earned + endStars, gamesFinished: s.totals.gamesFinished + 1 },
+      // Aşama 10.2: bitirilen oyun (bir kez; oyun burada kapanır) ve son puan.
+      goals: applyProgress(s.goals, { ...NO_PROGRESS, games: 1, score: finalScore }, modeInfo(active)),
     },
   }
 }
