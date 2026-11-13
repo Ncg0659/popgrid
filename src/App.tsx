@@ -21,6 +21,10 @@ import { economyBanner, purchaseMessage, createPurchaseGuard } from './ui/econom
 import { ShopSheet } from './ui/ShopSheet'
 import { StarButton } from './ui/StarButton'
 import { StarToast } from './ui/StarToast'
+import { GoalsButton } from './ui/GoalsButton'
+import { GoalsSheet } from './ui/GoalsSheet'
+import { autoCreditNotice, claimMessage, claimableCount, completionNotice } from './ui/goalsUi'
+import type { EconomyState } from './economy/ledger'
 import { useEconomy } from './ui/useEconomy'
 import { randomId } from './storage/economy'
 import type { JokerKind } from './engine/types'
@@ -44,7 +48,8 @@ export default function App() {
   const helpButton = () => document.querySelector<HTMLElement>('.help-btn')
   const restartButton = () => document.querySelector<HTMLElement>('.restart')
   const shopButton = () => document.querySelector<HTMLElement>('.star-btn')
-  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro' | 'shop'
+  const goalsButtonEl = () => document.querySelector<HTMLElement>('.goals-btn')
+  type Overlay = 'none' | 'tutorial' | 'help' | 'mode' | 'jokerIntro' | 'shop' | 'goals'
   // Açılışta: yeni oyuncuya temel eğitim; Eğlence ile açılan ve tanıtımı görmemiş oyuncuya joker tanıtımı.
   const [overlay, setOverlay] = useState<Overlay>(() => {
     if (tutorialStore.shouldAutoShow(g.best)) return 'tutorial'
@@ -128,9 +133,45 @@ export default function App() {
     return result
   }
 
+  /** Aşama 10.4: görev/başarım ödülünü al ("Al"). Yalnızca kalıcı kaydı yapılan ödül "eklendi" sayılır. */
+  const claimReward = (rewardId: string) => {
+    const r = eco.store.claimReward(rewardId)
+    eco.apply(r)
+    const success = r.ok && r.persisted
+    if (success) g.pulseStars('gain', r.stars)
+    return { ok: success, text: success ? claimMessage({ ok: true, stars: r.stars }) : claimMessage(r.ok ? { ok: false, reason: 'storageError' } : r) }
+  }
+
+  // Aşama 10.4: kısa bildirimler (yıldız bilgisi, görev tamamlandı, gün sonu otomatik ödül) tek yerde, sırayla.
+  const [toastNotice, setToastNotice] = useState<{ id: number; text: string } | null>(null)
+  const noticeSeq = useRef(0)
+  const starNotice = g.starNotice
+  useEffect(() => {
+    if (!starNotice) return
+    noticeSeq.current += 1
+    setToastNotice({ id: noticeSeq.current, text: starNotice.text })
+  }, [starNotice])
+  const prevEco = useRef<EconomyState | null>(null)
+  useEffect(() => {
+    const prev = prevEco.current
+    prevEco.current = eco.state
+    // Panel açıkken tamamlanma bildirimi gösterilmez (oyuncu zaten görüyor); gün sonu bildirimi her zaman.
+    const text = autoCreditNotice(prev, eco.state) ?? (overlay === 'goals' ? null : completionNotice(prev, eco.state))
+    if (!text) return
+    noticeSeq.current += 1
+    setToastNotice({ id: noticeSeq.current, text })
+  }, [eco.state, overlay])
+
   const banner = economyBanner(eco.status, eco.persistent)
   const starButton = (
     <StarButton stars={eco.state.stars} warn={banner !== null} onOpenShop={() => setOverlay('shop')} pulse={g.starPulse} reducedMotion={reducedMotion} />
+  )
+  // Aşama 10.4: Görevler düğmesi yıldız düğmesinin hemen solunda (tahta ve tepsi küçülmez).
+  const barActions = (
+    <div className="bar-actions">
+      <GoalsButton pending={claimableCount(eco.state)} onOpen={() => setOverlay('goals')} />
+      {starButton}
+    </div>
   )
 
   const startMode = (mode: 'klasik' | 'eglence') => {
@@ -203,7 +244,7 @@ export default function App() {
         reducedMotion={reducedMotion}
       />
       <div className="bottom-zone">
-        <StarToast notice={g.starNotice} banner={banner} />
+        <StarToast notice={toastNotice} banner={banner} />
         {fun ? (
           <>
             <JokerBar
@@ -213,7 +254,7 @@ export default function App() {
               onArm={g.arm}
               onRefresh={g.refresh}
               onDisarm={g.disarm}
-              trailing={starButton}
+              trailing={barActions}
               bump={g.jokerBump}
             />
             {/* Eğlence'de ipucu satırının yerini joker çubuğu alır; ipucu ekran okuyucuya söylenir. */}
@@ -226,7 +267,7 @@ export default function App() {
             <p className="hint" aria-live="polite">
               {hint}
             </p>
-            {starButton}
+            {barActions}
           </div>
         )}
       </div>
@@ -294,6 +335,18 @@ export default function App() {
         returnFocus={shopButton}
         pulse={g.starPulse}
         reducedMotion={reducedMotion}
+      />
+    )}
+    {overlay === 'goals' && (
+      <GoalsSheet
+        state={eco.state}
+        status={eco.status}
+        persistent={eco.persistent}
+        onClaim={claimReward}
+        canTakeOver={banner?.canTakeOver ?? false}
+        onTakeOver={eco.takeOver}
+        onClose={() => setOverlay('none')}
+        returnFocus={goalsButtonEl}
       />
     )}
     {overlay === 'jokerIntro' && (
